@@ -1,0 +1,9 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+router_state.json
+router_stats.json
+skill_router_state.json
+skill_router_stats.json
+training_data/

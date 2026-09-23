@@ -1,0 +1,8 @@
+{
+  "provider": "laya",
+  "confidence_threshold": {
+    "jev": 60,
+    "laya": 25
+  },
+  "skill_picker_batch_size": 20
+}
