@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # Model router protocol
 
 When a message arrives with injected context
@@ -27,7 +29,3 @@ When a message arrives with injected context `[SKILL_SUGGESTION skill=<name> con
   don't have to keep using it — same as any other skill match.
 - No tag present → pick the skill yourself the normal way, as if the
   router wasn't there.
-
-# Vault
-
-Project note: `Brain/Projects/ClaudeRouters.md` in the Obsidian vault (`../../Brain/` from this folder).
