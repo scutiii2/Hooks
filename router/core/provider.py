@@ -4,7 +4,8 @@ Default: laya (free, no card required). Adjustable in router_config.json,
 or override per-run with PROVIDER=jev in .env. See router/core/config.py
 for the full precedence rules.
 """
-from .classifiers import Classifier, JevClassifier, LayaClassifier, ClassifierError
+from .classifiers import Classifier, JevClassifier, ClassifierError
+from .laya_server import RemoteLayaClassifier
 from . import config
 
 ProviderError = ClassifierError  # kept as an alias: existing call sites catch this name
@@ -23,7 +24,7 @@ def get_threshold() -> int:
 def get_classifier() -> Classifier:
     name = _provider_name()
     if name not in _instances:
-        _instances[name] = JevClassifier() if name == "jev" else LayaClassifier()
+        _instances[name] = JevClassifier() if name == "jev" else RemoteLayaClassifier()
     return _instances[name]
 
 

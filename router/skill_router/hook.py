@@ -23,7 +23,9 @@ def main():
         if not state.is_enabled():
             sys.exit(0)
 
-        if not prompt.strip():
+        from ..model_router.hook import is_short_contextual_reply
+
+        if not prompt.strip() or is_short_contextual_reply(prompt):
             sys.exit(0)
 
         result = picker.choose(prompt, timeout=3.0)

@@ -54,45 +54,31 @@ class Classifier(ABC):
 
 
 class JevClassifier(Classifier):
-    """Remote, paid. typesafe-ai/jev via Vercel AI Gateway (OpenAI-compatible)."""
+    """Remote, paid. TypeSafe's own Jev API (POST /v1/systemone): typed question, real probabilities."""
 
-    GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions"
-    MODEL_ID = "typesafe-ai/jev"
-    INPUT_COST_PER_TOKEN = 0.042 / 1_000_000
-
-    def _system_prompt(self, criteria: dict) -> str:
-        options = " | ".join(criteria.keys())
-        return (
-            "You are a routing classifier. Given input and a set of named "
-            f"options ({options}), pick exactly one option. "
-            "Respond with ONLY a JSON object, no other text: "
-            '{"choice": "<exact option name>", "confidence": <0-100 integer>}'
-        )
+    URL = "https://api.typesafe.ai/v1/systemone"
+    MODEL_ID = "jev-latest"
+    KEY_ENV = "TYPESAFE_API_KEY"
+    QUESTION_ID = "answer"
 
     def ask_choice(self, subject: str, criteria: dict, timeout: float) -> dict:
-        api_key = os.environ.get("AI_GATEWAY_API_KEY", "").strip()
+        api_key = os.environ.get(self.KEY_ENV, "").strip()
         if not api_key:
-            raise ClassifierError("AI_GATEWAY_API_KEY not set")
-
-        criteria_lines = "\n".join(f"- {name}: {desc}" for name, desc in criteria.items())
-        user_content = f"{subject}\n\nOptions:\n{criteria_lines}"
+            raise ClassifierError(f"{self.KEY_ENV} not set")
 
         payload = {
+            "state": subject,
             "model": self.MODEL_ID,
-            "messages": [
-                {"role": "system", "content": self._system_prompt(criteria)},
-                {"role": "user", "content": user_content},
-            ],
-            "temperature": 0,
+            "questions": {self.QUESTION_ID: {
+                "type": "choice",
+                "instructions": "Pick the single best-fitting option.",
+                "criteria": criteria,
+            }},
         }
-        data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
-            self.GATEWAY_URL,
-            data=data,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
+            self.URL,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             method="POST",
         )
 
@@ -104,23 +90,21 @@ class JevClassifier(Classifier):
             raise ClassifierError(f"HTTP {e.code}: {detail}") from e
         except urllib.error.URLError as e:
             raise ClassifierError(f"request failed: {e}") from e
-        except TimeoutError as e:
-            raise ClassifierError(f"timeout: {e}") from e
+        except (TimeoutError, ValueError) as e:
+            raise ClassifierError(f"timeout or bad JSON: {e}") from e
 
         try:
-            content = body["choices"][0]["message"]["content"]
-            cost = body.get("usage", {}).get("prompt_tokens", 0) * self.INPUT_COST_PER_TOKEN
-        except (KeyError, IndexError) as e:
+            answer = body["answers"][self.QUESTION_ID]
+            choice = answer["choice"]
+            confidence = answer["confidence"]
+        except (KeyError, TypeError, AttributeError) as e:
             raise ClassifierError(f"unexpected response shape: {e}") from e
+        if choice not in criteria:
+            raise ClassifierError(f"answer names an option that was not offered: {choice!r}")
+        if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) or not 0 <= confidence <= 1:
+            raise ClassifierError(f"no usable confidence: {confidence!r}")
 
-        try:
-            parsed = json.loads(content)
-            choice = parsed["choice"]
-            confidence = int(parsed["confidence"])
-        except (json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
-            raise ClassifierError(f"could not parse output: {content!r} ({e})") from e
-
-        return {"choice": choice, "confidence": confidence, "cost_usd": cost}
+        return {"choice": choice, "confidence": round(confidence * 100), "cost_usd": 0.0}
 
 
 class LayaClassifier(Classifier):

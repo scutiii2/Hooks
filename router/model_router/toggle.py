@@ -18,7 +18,7 @@ class ModelRouterToggle(ToggleCLI):
     def on_message(self):
         name = provider._provider_name()
         via = "locally via Laya, no network calls" if name == "laya" \
-            else "Jev (OpenRouter/Vercel AI Gateway)"
+            else "Jev (TypeSafe API)"
         return (f"Router ON. Messages now get classified {via}.\n"
                 "Turn OFF for anything private: python -m router.model_router.toggle off")
 

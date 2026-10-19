@@ -67,7 +67,7 @@ def add(target: str):
     for args in OUR_ARGS_LISTS:
         key = (PYTHON_EXE, tuple(args))
         if key not in existing:
-            entry["hooks"].append({"type": "command", "command": PYTHON_EXE, "args": args, "timeout": 5})
+            entry["hooks"].append({"type": "command", "command": PYTHON_EXE, "args": args, "timeout": 10})
             added += 1
 
     _save(target, data)

@@ -17,6 +17,7 @@ DEFAULTS = {
     "provider": "laya",
     "confidence_threshold": {"jev": 60, "laya": 25},
     "skill_picker_batch_size": 20,
+    "laya_server_port": 8765,
 }
 
 
@@ -51,6 +52,13 @@ def get_confidence_threshold(provider_name: str) -> int:
         return int(override)
     thresholds = _read_config()["confidence_threshold"]
     return int(thresholds.get(provider_name, 60))
+
+
+def get_laya_server_port() -> int:
+    override = os.environ.get("LAYA_SERVER_PORT", "").strip()
+    if override:
+        return int(override)
+    return int(_read_config()["laya_server_port"])
 
 
 def get_skill_picker_batch_size() -> int:

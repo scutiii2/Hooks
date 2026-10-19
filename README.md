@@ -5,7 +5,7 @@ Two opt-in routers for Claude Code, both **OFF by default**:
 - **Model router** — classifies each message by size (`tiny`/`everyday`/`large`/`hardest`) and, when confident enough, dispatches it to a Haiku- or Sonnet-pinned subagent instead of the main session model.
 - **Skill router** — classifies each message against your installed skill catalog and suggests the best-fitting skill, so I invoke it directly instead of guessing.
 
-Both use a pluggable classifier: **Laya** (local, free, runs on your machine) or **Jev** (remote, paid, via Vercel AI Gateway). Neither router ever blocks a message — any failure, timeout, or low confidence just falls back to normal behavior, as if the router wasn't there.
+Both use a pluggable classifier: **Laya** (local, free, runs on your machine) or **Jev** (remote, paid, via TypeSafe's own API). Neither router ever blocks a message — any failure, timeout, or low confidence just falls back to normal behavior, as if the router wasn't there.
 
 ## How it works
 
@@ -22,10 +22,10 @@ python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt   # installs laya (local classifier)
 ```
 
-Copy your Vercel AI Gateway key into `.env` if you want to use Jev instead of Laya:
+Copy your TypeSafe API key into `.env` if you want to use Jev instead of Laya:
 
 ```
-AI_GATEWAY_API_KEY=your-key-here
+TYPESAFE_API_KEY=your-key-here
 ```
 
 Laya needs no API key — it downloads model weights (~1.6GB, one-time) to your machine on first use.
@@ -47,7 +47,20 @@ router_toggle.bat skill on|off|status
 
 Or hand-edit `router_state.json` / `skill_router_state.json` directly — `{"enabled": true|false}`.
 
-**Privacy note**: with `PROVIDER=laya` (the default), classification runs entirely on your machine — nothing leaves it. With `PROVIDER=jev`, every message you send while the router is ON passes through OpenRouter/Vercel AI Gateway to TypeSafe AI (Jev's maker). Keep routers off, or switch to `laya`, for private work.
+**Privacy note**: with `PROVIDER=laya` (the default), classification runs entirely on your machine — nothing leaves it. With `PROVIDER=jev`, every message you send while the router is ON is sent to TypeSafe AI (Jev's maker) over its API. Keep routers off, or switch to `laya`, for private work.
+
+## Laya server (why the first prompt is skipped)
+
+Loading Laya takes ~35 s, far over a hook's timeout, so with `provider=laya` the hooks ask one resident background process (`router/core/laya_server.py`, loopback `127.0.0.1:8765` only, ~1.6 GB RAM) instead of loading the model themselves. If it is not running, the hook skips that prompt, starts it in the background, and prompts after it has loaded (~15-35 s) are routed. Output goes to `laya_server.log`.
+
+```bash
+python -m router.core.laya_server status   # running / not running
+python -m router.core.laya_server stop     # free the RAM
+```
+
+To start it at every login, run `laya_server.bat autostart-on` yourself (it creates a scheduled task; `autostart-off` removes it). Or use `laya_server.bat` with no arguments for a menu.
+
+Port: `laya_server_port` in `router_config.json` or `LAYA_SERVER_PORT` in `.env`. It stays up until you stop it or reboot.
 
 ## Configuration
 
@@ -63,7 +76,7 @@ Or hand-edit `router_state.json` / `skill_router_state.json` directly — `{"ena
 
 | Setting | What it does |
 |---|---|
-| `provider` | `"laya"` (local, free) or `"jev"` (remote, paid, needs a card on Vercel AI Gateway) |
+| `provider` | `"laya"` (local, free) or `"jev"` (remote, paid, needs a TypeSafe API key) |
 | `confidence_threshold` | Per-provider cutoff a classification must clear before it's trusted enough to act on (`decision=use`). Below it, the router's pick is ignored and things proceed normally. This is a safety gate, not an accuracy knob — raising it reduces wrong dispatches at the cost of also losing some correct ones. |
 | `skill_picker_batch_size` | Skill catalogs larger than this get split into batches, each judged separately, with a final round among batch winners. Batching has a real trade-off (see `router/skill_router/picker.py` for the tested reasoning) — don't lower it casually. |
 
