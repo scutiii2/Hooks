@@ -3,7 +3,8 @@ classification, plus a line whenever the Laya server goes up or down.
 
     python -m router.tools.watch_decisions [--last N]
 
-`dispatch` shows what CLAUDE.md tells Claude to do for a `use` decision. Whether Claude followed it is not logged.
+`dispatch` shows what CLAUDE.md tells Claude to do for a `use` decision.
+FOLLOW lines compare tool actions with the latest applicable suggestion in that session.
 """
 import json
 import os
@@ -61,8 +62,32 @@ class LogTail:
         return []
 
 
-def format_record(record: dict, width: int) -> str:
+def is_followed(action: dict, decisions: list[dict]) -> bool:
+    session = action.get("session_id")
+    if not session:
+        return False
+    tool = action.get("tool")
+    if tool not in ("Skill", "Agent", "Task"):
+        return False
+    router = "SKILL" if tool == "Skill" else "MODEL"
+    candidates = [r for r in decisions
+                  if r.get("router") == router and r.get("decision") == "use"
+                  and r.get("session_id") == session
+                  and 0 <= action["timestamp"] - r["timestamp"] <= 300]
+    if not candidates:
+        return False
+    latest = max(candidates, key=lambda r: r["timestamp"])
+    target = latest.get("predicted_skill") if tool == "Skill" else DISPATCH.get(latest.get("predicted_size"))
+    return action.get("target") == target
+
+
+def format_record(record: dict, width: int, decisions: list[dict] = ()) -> str:
     when = datetime.fromtimestamp(record["timestamp"]).strftime("%H:%M:%S")
+    if record["router"] == "FOLLOW":
+        followed = is_followed(record, decisions)
+        colour, status = (GREEN, "followed") if followed else (YELLOW, "unprompted")
+        return (f"{DIM}{when}{RESET}  {CYAN}FOLLOW{RESET}  {colour}{status}{RESET}  "
+                f"{record['tool']}({record['target']})")
     used = record["decision"] == "use"
     colour = GREEN if used else YELLOW
     threshold = config.get_confidence_threshold(record.get("provider", "laya"))
@@ -100,10 +125,15 @@ def main(argv: list[str]) -> int:
     last = int(argv[argv.index("--last") + 1]) if "--last" in argv else 5
     os.system("")  # enables ANSI colours in the Windows console
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # prompts can hold characters the console code page lacks
-    tails = [LogTail("model_router_log.jsonl", "MODEL"), LogTail("skill_router_log.jsonl", "SKILL")]
+    tails = [LogTail("model_router_log.jsonl", "MODEL"), LogTail("skill_router_log.jsonl", "SKILL"),
+             LogTail("followed_log.jsonl", "FOLLOW")]
     print(f"Watching {TRAINING_DIR}  (Ctrl+C to stop)\n"
           f"{DIM}use = Claude is told to act on it, fallback = Claude answers normally{RESET}\n")
-    backlog = sorted((r for t in tails for r in t.skip_to_last(last)), key=lambda r: r["timestamp"])
+    # Seed matching with recent decisions even when --last hides them from display.
+    initial = [t.poll() for t in tails]
+    decisions = [r for records in initial for r in records if r["router"] != "FOLLOW"]
+    backlog = sorted((r for records in initial for r in (records[-last:] if last > 0 else [])),
+                     key=lambda r: r["timestamp"])
     state, next_check = None, 0.0
     try:
         while True:
@@ -113,10 +143,12 @@ def main(argv: list[str]) -> int:
                 if up != state:
                     print(server_line(up), flush=True)
                     state = up
-            fresh = backlog + sorted((r for t in tails for r in t.poll()), key=lambda r: r["timestamp"])
+            fresh = sorted((r for t in tails for r in t.poll()), key=lambda r: r["timestamp"])
+            decisions.extend(r for r in fresh if r["router"] != "FOLLOW")
+            for record in backlog + fresh:
+                print(format_record(record, width, decisions), flush=True)
             backlog = []
-            for record in fresh:
-                print(format_record(record, width), flush=True)
+            decisions = [r for r in decisions if r["timestamp"] >= time.time() - 300]
             time.sleep(POLL_SECONDS)
     except KeyboardInterrupt:
         print()

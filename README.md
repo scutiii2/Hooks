@@ -87,7 +87,7 @@ Anything set in `.env` (`PROVIDER`, `CONFIDENCE_THRESHOLD`, `SKILL_PICKER_BATCH_
 - Confidence-tag format: `[ROUTER size=<size> confidence=<N>% threshold=<T>% decision=<use|fallback>]`
 - Size → subagent mapping (see `CLAUDE.md`): `tiny`/`everyday` → `router-haiku`, `large`/`hardest` → `router-sonnet` (`.claude/agents/router-haiku.md`, `.claude/agents/router-sonnet.md`).
 - Short, conversation-only replies (e.g. "yes do that but shorter") are filtered out by a regex heuristic before classification even runs — they're always handled by me directly.
-- Stats: `python -m router.model_router.toggle status` shows counts by size, Jev cost, and failures.
+- Stats: `python -m router.model_router.toggle status` shows counts by size and failures.
 
 ## Skill router details
 
@@ -106,6 +106,8 @@ Laya's confidence scores are explicitly uncalibrated on this checkpoint, which l
 3. **Export** — `python -m router.tools.export_training_data model|skill > out.jsonl` converts labeled data into the `{state, questions, gold}` shape the fine-tuning notebook expects.
 
 `training_data/` is gitignored — it's your data. The notebook's own benchmark used ~1,200 labeled cases; that's a rough sizing reference, not a hard requirement.
+
+Both decision logs include `session_id`. The PostToolUse hook records only the session, tool, target skill/subagent, and timestamp in `training_data/followed_log.jsonl`, without tool prompts. The watcher (`python -m router.tools.watch_decisions`) shows these actions as green `followed` when they match the latest applicable `use` decision in the same session within five minutes, or yellow `unprompted` otherwise. To install all three hooks, run `.venv\Scripts\python.exe -m router.tools.manage_hooks add` yourself; installation updates your Claude settings and must be performed by you.
 
 ## Project layout
 

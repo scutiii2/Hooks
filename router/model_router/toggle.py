@@ -40,7 +40,6 @@ class ModelRouterToggle(ToggleCLI):
             print(f"  {size:10s} {count}")
         print(f"Handled directly (no routing): {stats['handled_by_me']}")
         print(f"Jev calls: {stats['jev_calls']}  (failures: {stats['jev_failures']})")
-        print(f"Jev cost so far: ${stats['jev_cost_usd']:.6f}")
 
 
 if __name__ == "__main__":

@@ -29,14 +29,14 @@ def get_classifier() -> Classifier:
 
 
 def classify_size(message: str, timeout: float = 3.0) -> dict:
-    """Returns {"size", "confidence", "cost_usd", "provider"}."""
+    """Returns {"size", "confidence", "provider"}."""
     result = get_classifier().classify_size(message, timeout=timeout)
     result["provider"] = _provider_name()
     return result
 
 
 def pick_skill(request: str, skills: list, timeout: float = 5.0) -> dict:
-    """Returns {"skill", "confidence", "cost_usd", "provider"} for one batch."""
+    """Returns {"skill", "confidence", "provider"} for one batch."""
     result = get_classifier().pick_skill_batch(request, skills, timeout=timeout)
     result["provider"] = _provider_name()
     return result

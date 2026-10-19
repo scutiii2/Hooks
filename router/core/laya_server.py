@@ -143,7 +143,7 @@ class RemoteLayaClassifier(Classifier):
     def ask_choice(self, subject: str, criteria: dict, timeout: float) -> dict:
         body = self._post("/ask", {"subject": subject, "criteria": criteria}, timeout)
         try:
-            return {"choice": body["choice"], "confidence": int(body["confidence"]), "cost_usd": 0.0}
+            return {"choice": body["choice"], "confidence": int(body["confidence"])}
         except (KeyError, TypeError, ValueError) as error:
             raise ClassifierError(f"laya server sent an unexpected answer: {body!r}") from error
 

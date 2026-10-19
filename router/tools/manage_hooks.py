@@ -27,6 +27,10 @@ OUR_ARGS_LISTS = [
     ["-m", "router.model_router.hook"],
     ["-m", "router.skill_router.hook"],
 ]
+HOOK_GROUPS = [
+    ("UserPromptSubmit", "*", OUR_ARGS_LISTS, 10),
+    ("PostToolUse", "Skill|Agent|Task", [["-m", "router.tools.log_followed"]], 5),
+]
 
 
 def _load(target: str) -> dict:
@@ -44,9 +48,9 @@ def _save(target: str, data: dict):
         f.write("\n")
 
 
-def _find_matcher_entry(hooks_list: list) -> dict:
+def _find_matcher_entry(hooks_list: list, matcher: str) -> dict:
     for entry in hooks_list:
-        if entry.get("matcher") == "*":
+        if entry.get("matcher") == matcher:
             return entry
     return None
 
@@ -54,21 +58,19 @@ def _find_matcher_entry(hooks_list: list) -> dict:
 def add(target: str):
     data = _load(target)
     data.setdefault("hooks", {})
-    data["hooks"].setdefault("UserPromptSubmit", [])
-    hooks_list = data["hooks"]["UserPromptSubmit"]
-
-    entry = _find_matcher_entry(hooks_list)
-    if entry is None:
-        entry = {"matcher": "*", "hooks": []}
-        hooks_list.append(entry)
-
-    existing = {(h.get("command"), tuple(h.get("args", []))) for h in entry["hooks"]}
     added = 0
-    for args in OUR_ARGS_LISTS:
-        key = (PYTHON_EXE, tuple(args))
-        if key not in existing:
-            entry["hooks"].append({"type": "command", "command": PYTHON_EXE, "args": args, "timeout": 10})
-            added += 1
+    for event, matcher, args_lists, timeout in HOOK_GROUPS:
+        hooks_list = data["hooks"].setdefault(event, [])
+        entry = _find_matcher_entry(hooks_list, matcher)
+        if entry is None:
+            entry = {"matcher": matcher, "hooks": []}
+            hooks_list.append(entry)
+        existing = {(h.get("command"), tuple(h.get("args", [])))
+                    for e in hooks_list if e.get("matcher") == matcher for h in e["hooks"]}
+        for args in args_lists:
+            if (PYTHON_EXE, tuple(args)) not in existing:
+                entry["hooks"].append({"type": "command", "command": PYTHON_EXE, "args": args, "timeout": timeout})
+                added += 1
 
     _save(target, data)
     print(f"Added {added} hook(s) to {target}" if added
@@ -77,24 +79,24 @@ def add(target: str):
 
 def remove(target: str):
     data = _load(target)
-    hooks_list = data.get("hooks", {}).get("UserPromptSubmit", [])
-    entry = _find_matcher_entry(hooks_list)
-
-    if entry is None:
+    removed = 0
+    for event, matcher, args_lists, _ in HOOK_GROUPS:
+        hooks_list = data.get("hooks", {}).get(event, [])
+        our_keys = {(PYTHON_EXE, tuple(args)) for args in args_lists}
+        for entry in hooks_list[:]:
+            if entry.get("matcher") != matcher:
+                continue
+            before = len(entry["hooks"])
+            entry["hooks"] = [h for h in entry["hooks"]
+                              if (h.get("command"), tuple(h.get("args", []))) not in our_keys]
+            removed += before - len(entry["hooks"])
+            if before and not entry["hooks"]:
+                hooks_list.remove(entry)
+        if event in data.get("hooks", {}) and not hooks_list:
+            data["hooks"].pop(event)
+    if not removed:
         print(f"No matching hooks found in {target}.")
         return
-
-    our_keys = {(PYTHON_EXE, tuple(args)) for args in OUR_ARGS_LISTS}
-    before = len(entry["hooks"])
-    entry["hooks"] = [h for h in entry["hooks"]
-                       if (h.get("command"), tuple(h.get("args", []))) not in our_keys]
-    removed = before - len(entry["hooks"])
-
-    # Clean up empty scaffolding so we don't leave clutter behind.
-    if not entry["hooks"]:
-        hooks_list.remove(entry)
-    if not hooks_list:
-        data["hooks"].pop("UserPromptSubmit", None)
     if not data.get("hooks"):
         data.pop("hooks", None)
 

@@ -34,7 +34,7 @@ class Classifier(ABC):
     def ask_choice(self, subject: str, criteria: dict, timeout: float) -> dict:
         """criteria: {option_name: one_line_description}.
 
-        Returns {"choice": str, "confidence": int (0-100), "cost_usd": float}.
+        Returns {"choice": str, "confidence": int (0-100)}.
         Raises ClassifierError on any failure.
         """
 
@@ -42,15 +42,13 @@ class Classifier(ABC):
         result = self.ask_choice(message, SIZE_CRITERIA, timeout)
         if result["choice"] not in SIZES:
             raise ClassifierError(f"unknown size: {result['choice']!r}")
-        return {"size": result["choice"], "confidence": result["confidence"],
-                "cost_usd": result["cost_usd"]}
+        return {"size": result["choice"], "confidence": result["confidence"]}
 
     def pick_skill_batch(self, request: str, skills: list, timeout: float = 5.0) -> dict:
         criteria = {name: desc for name, desc in skills}
         criteria["none"] = "nothing here fits well"
         result = self.ask_choice(request, criteria, timeout)
-        return {"skill": result["choice"], "confidence": result["confidence"],
-                "cost_usd": result["cost_usd"]}
+        return {"skill": result["choice"], "confidence": result["confidence"]}
 
 
 class JevClassifier(Classifier):
@@ -104,7 +102,7 @@ class JevClassifier(Classifier):
         if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) or not 0 <= confidence <= 1:
             raise ClassifierError(f"no usable confidence: {confidence!r}")
 
-        return {"choice": choice, "confidence": round(confidence * 100), "cost_usd": 0.0}
+        return {"choice": choice, "confidence": round(confidence * 100)}
 
 
 class LayaClassifier(Classifier):
@@ -147,4 +145,4 @@ class LayaClassifier(Classifier):
         except Exception as e:
             raise ClassifierError(f"predict failed or unexpected response shape: {e}") from e
 
-        return {"choice": choice, "confidence": confidence, "cost_usd": 0.0}
+        return {"choice": choice, "confidence": confidence}

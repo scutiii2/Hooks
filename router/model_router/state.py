@@ -24,14 +24,12 @@ class RouterStats(JsonStore):
         "handled_by_me": 0,
         "jev_calls": 0,
         "jev_failures": 0,
-        "jev_cost_usd": 0.0,
     }
 
-    def record_classification(self, size: str, cost_usd: float):
+    def record_classification(self, size: str):
         stats = self.read()
         stats["counts"][size] = stats["counts"].get(size, 0) + 1
         stats["jev_calls"] += 1
-        stats["jev_cost_usd"] += cost_usd
         self.write(stats)
 
     def record_jev_failure(self):

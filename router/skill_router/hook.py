@@ -34,9 +34,10 @@ def main():
             state.record_failure()
             sys.exit(0)
 
-        state.record(result["decision"], result["cost_usd"])
+        state.record(result["decision"])
 
         skill_router_log.append({
+            "session_id": payload.get("session_id"),
             "input_text": prompt,
             "predicted_skill": result["skill"],
             "confidence": result["confidence"],

@@ -41,7 +41,7 @@ class SkillPicker:
                 for i in range(0, len(self.skills), batch_size)]
 
     def pick(self, request: str, timeout: float = 5.0) -> dict:
-        """Returns {"skill", "confidence", "cost_usd", "provider"}.
+        """Returns {"skill", "confidence", "provider"}.
 
         Raises provider.ProviderError on failure (caller should fall back
         to normal skill matching, never block on this).
@@ -51,41 +51,38 @@ class SkillPicker:
         if len(self.skills) <= batch_size:
             return _provider.pick_skill(request, self.skills, timeout=timeout)
 
-        total_cost = 0.0
         winners = []
         for batch in self._batches(batch_size):
             result = _provider.pick_skill(request, batch, timeout=timeout)
-            total_cost += result["cost_usd"]
             if result["skill"] != "none":
                 desc = next((d for n, d in batch if n == result["skill"]), "")
                 winners.append((result["skill"], desc))
 
         if not winners:
-            return {"skill": "none", "confidence": 0, "cost_usd": total_cost,
+            return {"skill": "none", "confidence": 0,
                      "provider": _provider._provider_name()}
 
         final = _provider.pick_skill(request, winners, timeout=timeout)
-        final["cost_usd"] += total_cost
         return final
 
     def choose(self, request: str, timeout: float = 5.0) -> dict:
         """pick() + threshold logic.
 
         Returns {"decision": "use"|"fallback", "skill": str|None,
-                 "confidence": int, "cost_usd": float, "provider": str|None,
+                 "confidence": int, "provider": str|None,
                  "error": str|None}.
         """
         try:
             result = self.pick(request, timeout=timeout)
         except _provider.ProviderError as e:
             return {"decision": "fallback", "skill": None, "confidence": 0,
-                    "cost_usd": 0.0, "provider": None, "error": str(e)}
+                    "provider": None, "error": str(e)}
 
         threshold = self.threshold if self.threshold is not None else _provider.get_threshold()
         decision = "use" if (result["skill"] != "none"
                               and result["confidence"] >= threshold) else "fallback"
         return {"decision": decision, "skill": result["skill"],
-                "confidence": result["confidence"], "cost_usd": result["cost_usd"],
+                "confidence": result["confidence"],
                 "provider": result["provider"], "error": None}
 
 

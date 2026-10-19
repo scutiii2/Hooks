@@ -38,7 +38,6 @@ class SkillRouterToggle(ToggleCLI):
         print(f"Used Jev's pick: {stats['used']}")
         print(f"Fell back to normal matching: {stats['fallback']}")
         print(f"Jev failures: {stats['jev_failures']}")
-        print(f"Jev cost so far: ${stats['jev_cost_usd']:.6f}")
 
 
 if __name__ == "__main__":

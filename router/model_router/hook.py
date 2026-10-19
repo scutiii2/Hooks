@@ -48,12 +48,13 @@ def main():
             state.record_jev_failure()
             sys.exit(0)
 
-        state.record_classification(result["size"], result["cost_usd"])
+        state.record_classification(result["size"])
 
         threshold = provider.get_threshold()
         decision = "use" if result["confidence"] >= threshold else "fallback"
 
         model_router_log.append({
+            "session_id": payload.get("session_id"),
             "input_text": prompt,
             "predicted_size": result["size"],
             "confidence": result["confidence"],
