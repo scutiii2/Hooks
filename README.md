@@ -109,6 +109,8 @@ Laya's confidence scores are explicitly uncalibrated on this checkpoint, which l
 
 Both decision logs include `session_id`. The PostToolUse hook records only the session, tool, target skill/subagent, and timestamp in `training_data/followed_log.jsonl`, without tool prompts. The watcher (`python -m router.tools.watch_decisions`) shows these actions as green `followed` when they match the latest applicable `use` decision in the same session within five minutes, or yellow `unprompted` otherwise. To install all three hooks, run `.venv\Scripts\python.exe -m router.tools.manage_hooks add` yourself; installation updates your Claude settings and must be performed by you.
 
+With the followed hook installed and `followed_log.jsonl` present, a live `use` decision with no matching action after 90 seconds prints a red `ignored?` hint once. The question mark matters: Claude may legitimately answer directly for a short reply that needs conversation context, and a skill suggestion is a hint, not a command.
+
 ## Project layout
 
 ```

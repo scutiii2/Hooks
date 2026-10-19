@@ -22,6 +22,7 @@ RESET, DIM, GREEN, YELLOW, CYAN, RED = "\033[0m", "\033[2m", "\033[32m", "\033[3
 DISPATCH = {"tiny": "router-haiku", "everyday": "router-haiku", "large": "router-sonnet", "hardest": "router-sonnet"}
 POLL_SECONDS = 0.3
 SERVER_CHECK_SECONDS = 3
+IGNORE_AFTER_SECONDS = 90
 
 
 class LogTail:
@@ -62,23 +63,72 @@ class LogTail:
         return []
 
 
-def is_followed(action: dict, decisions: list[dict]) -> bool:
+def matching_decision(action: dict, decisions: list[dict]) -> dict | None:
     session = action.get("session_id")
     if not session:
-        return False
+        return None
     tool = action.get("tool")
     if tool not in ("Skill", "Agent", "Task"):
-        return False
+        return None
     router = "SKILL" if tool == "Skill" else "MODEL"
     candidates = [r for r in decisions
                   if r.get("router") == router and r.get("decision") == "use"
                   and r.get("session_id") == session
                   and 0 <= action["timestamp"] - r["timestamp"] <= 300]
     if not candidates:
-        return False
+        return None
     latest = max(candidates, key=lambda r: r["timestamp"])
     target = latest.get("predicted_skill") if tool == "Skill" else DISPATCH.get(latest.get("predicted_size"))
-    return action.get("target") == target
+    return latest if action.get("target") == target else None
+
+
+def is_followed(action: dict, decisions: list[dict]) -> bool:
+    return matching_decision(action, decisions) is not None
+
+
+class PendingDecisions:
+    """Live suggestions waiting for an action; no I/O or sleeping."""
+
+    def __init__(self, clock=time.time):
+        self.clock = clock
+        self.decisions = []
+
+    def add(self, decision: dict):
+        if decision.get("session_id") and decision.get("decision") == "use":
+            self.decisions.append(decision)
+
+    def resolve(self, action: dict):
+        matched = matching_decision(action, self.decisions)
+        if matched is not None:
+            self.decisions.remove(matched)
+
+    def expired(self, now=None) -> list[dict]:
+        now = self.clock() if now is None else now
+        expired = [r for r in self.decisions if now - r["timestamp"] >= IGNORE_AFTER_SECONDS]
+        self.decisions = [r for r in self.decisions if now - r["timestamp"] < IGNORE_AFTER_SECONDS]
+        return expired
+
+
+def with_prompt(head: str, record: dict, room: int) -> str:
+    room = max(room, 10)
+    prompt = " ".join(record["input_text"].split())
+    if len(prompt) > room:
+        prompt = prompt[: room - 3] + "..."
+    return f'{head}  {DIM}"{prompt}"{RESET}'
+
+
+def format_ignored(record: dict, width: int) -> str:
+    when = datetime.now().strftime("%H:%M:%S")
+    if record["router"] == "MODEL":
+        pick = record["predicted_size"]
+        target = DISPATCH.get(pick, "?")
+    else:
+        pick = record["predicted_skill"]
+        target = f"Skill({pick})"
+    detail = f"{record['router']} use {pick} -> {target}  no action in {IGNORE_AFTER_SECONDS}s"
+    head = f"{DIM}{when}{RESET}  {CYAN}IGNORE{RESET}  {RED}ignored?{RESET}  {detail}"
+    visible = len(f"{when}  IGNORE  ignored?  {detail}")
+    return with_prompt(head, record, width - visible - 4)
 
 
 def format_record(record: dict, width: int, decisions: list[dict] = ()) -> str:
@@ -100,11 +150,7 @@ def format_record(record: dict, width: int, decisions: list[dict] = ()) -> str:
         action = f"-> Skill({pick})" if used else "no suggestion"
     head = f"{DIM}{when}{RESET}  {CYAN}{record['router']:<5}{RESET}  {colour}{record['decision']:<8}{RESET}  {pick:<24.24}  {record['confidence']:>3}%/{threshold}%  {action}"
     visible = len(f"{when}  {record['router']:<5}  {record['decision']:<8}  {pick:<24.24}  {record['confidence']:>3}%/{threshold}%  {action}")
-    room = max(width - visible - 4, 10)
-    prompt = " ".join(record["input_text"].split())
-    if len(prompt) > room:
-        prompt = prompt[: room - 3] + "..."
-    return f'{head}  {DIM}"{prompt}"{RESET}'
+    return with_prompt(head, record, width - visible - 4)
 
 
 def server_up() -> bool:
@@ -135,9 +181,11 @@ def main(argv: list[str]) -> int:
     backlog = sorted((r for records in initial for r in (records[-last:] if last > 0 else [])),
                      key=lambda r: r["timestamp"])
     state, next_check = None, 0.0
+    pending, follow_off_notice = PendingDecisions(), False
     try:
         while True:
             width = shutil.get_terminal_size((120, 20)).columns
+            follow_enabled = os.path.exists(tails[2].path)
             if time.time() >= next_check:
                 up, next_check = server_up(), time.time() + SERVER_CHECK_SECONDS
                 if up != state:
@@ -145,9 +193,25 @@ def main(argv: list[str]) -> int:
                     state = up
             fresh = sorted((r for t in tails for r in t.poll()), key=lambda r: r["timestamp"])
             decisions.extend(r for r in fresh if r["router"] != "FOLLOW")
-            for record in backlog + fresh:
+            for record in backlog:
                 print(format_record(record, width, decisions), flush=True)
             backlog = []
+            for record in fresh:
+                if record["router"] == "FOLLOW":
+                    pending.resolve(record)
+                elif record.get("session_id") and record.get("decision") == "use":
+                    if follow_enabled:
+                        pending.add(record)
+                    elif not follow_off_notice:
+                        print(f"{CYAN}FOLLOW{RESET}  {YELLOW}off{RESET}  followed hook not installed "
+                              "(no followed_log.jsonl), ignored? disabled", flush=True)
+                        follow_off_notice = True
+                print(format_record(record, width, decisions), flush=True)
+            if follow_enabled:
+                for record in pending.expired():
+                    print(format_ignored(record, width), flush=True)
+            else:
+                pending = PendingDecisions()  # An unobserved interval cannot prove an ignored suggestion.
             decisions = [r for r in decisions if r["timestamp"] >= time.time() - 300]
             time.sleep(POLL_SECONDS)
     except KeyboardInterrupt:

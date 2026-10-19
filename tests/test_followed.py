@@ -148,6 +148,82 @@ def test_legacy_stats():
         assert skill.read()["used"] == 1
 
 
+def test_pending_followed_and_expiry():
+    from router.tools.watch_decisions import PendingDecisions
+
+    now = [1000]
+    pending = PendingDecisions(clock=lambda: now[0])
+    skill = {"router": "SKILL", "session_id": "s1", "timestamp": 1000,
+             "decision": "use", "predicted_skill": "loop"}
+    action = {"session_id": "s1", "timestamp": 1010, "tool": "Skill", "target": "loop"}
+    pending.add(skill)
+    pending.resolve(action)
+    assert pending.expired(1091) == []
+
+    pending.add(skill)
+    now[0] = 1089.99
+    assert pending.expired() == []
+    now[0] = 1090
+    assert pending.expired() == [skill]
+    assert pending.expired(1200) == []
+
+
+def test_pending_rejects_unmatched_actions_and_null_sessions():
+    from router.tools.watch_decisions import PendingDecisions
+
+    skill = {"router": "SKILL", "session_id": "s1", "timestamp": 1000,
+             "decision": "use", "predicted_skill": "loop"}
+    action = {"session_id": "s1", "timestamp": 1010, "tool": "Skill", "target": "loop"}
+    for changes in [{"target": "other"}, {"session_id": "s2"}, {"timestamp": 1300.01},
+                    {"timestamp": 999}, {"tool": "Agent"}]:
+        pending = PendingDecisions()
+        pending.add(skill)
+        pending.resolve({**action, **changes})
+        assert pending.expired(1400) == [skill]
+    pending = PendingDecisions()
+    for decision in [{**skill, "session_id": None}, {k: v for k, v in skill.items() if k != "session_id"},
+                     {**skill, "decision": "fallback"}]:
+        pending.add(decision)
+    assert pending.expired(1400) == []
+
+
+def test_pending_dispatch_and_latest_decision():
+    from router.tools.watch_decisions import PendingDecisions, is_followed
+
+    model = {"router": "MODEL", "session_id": "s1", "timestamp": 1000,
+             "decision": "use", "predicted_size": "large"}
+    for tool in ["Agent", "Task"]:
+        pending = PendingDecisions()
+        pending.add(model)
+        pending.resolve({"tool": tool, "target": "router-sonnet", "session_id": "s1", "timestamp": 1300})
+        assert pending.expired(1400) == []
+    old = {"router": "SKILL", "session_id": "s1", "timestamp": 1000,
+           "decision": "use", "predicted_skill": "loop"}
+    new = {**old, "timestamp": 1005, "predicted_skill": "other"}
+    action = {"tool": "Skill", "target": "loop", "session_id": "s1", "timestamp": 1010}
+    pending = PendingDecisions()
+    pending.add(new)
+    pending.add(old)
+    pending.resolve(action)
+    assert pending.expired(1100) == [new, old]
+    # Expiry never changes normal late FOLLOW matching.
+    assert is_followed(action, [old])
+
+
+def test_ignored_format():
+    from router.tools.watch_decisions import format_ignored, RED
+
+    decision = {"router": "MODEL", "session_id": "s1", "timestamp": 1000,
+                "decision": "use", "predicted_size": "large", "input_text": "long prompt " * 30}
+    line = format_ignored(decision, 120)
+    assert RED + "ignored?" in line
+    assert "MODEL use large -> router-sonnet" in line
+    assert "no action in 90s" in line
+    assert '..."' in line
+    skill = {**decision, "router": "SKILL", "predicted_skill": "loop"}
+    assert "SKILL use loop -> Skill(loop)" in format_ignored(skill, 120)
+
+
 if __name__ == "__main__":
     for name, test in list(globals().items()):
         if name.startswith("test_"):
