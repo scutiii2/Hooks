@@ -80,7 +80,7 @@ def test_follow_matching():
              "decision": "use", "predicted_size": "large"}
     action = {"router": "FOLLOW", "session_id": "s1", "timestamp": 1010,
               "tool": "Skill", "target": "loop"}
-    decisions = [model, skill]  # Ordering must not determine the latest decision.
+    decisions = [model, skill]  # Ordering must not matter.
     assert is_followed(action, decisions)
     assert is_followed({**action, "timestamp": 1300}, decisions)
     for changes in [{"target": "other"}, {"session_id": "s2"}, {"session_id": None},
@@ -88,7 +88,9 @@ def test_follow_matching():
         assert not is_followed({**action, **changes}, decisions)
     assert not is_followed(action, [{**skill, "decision": "fallback"}])
     assert not is_followed({**action, "session_id": None}, [{**skill, "session_id": None}])
-    assert not is_followed(action, decisions + [{**skill, "timestamp": 1005, "predicted_skill": "other"}])
+    # A newer, different suggestion does not hide the older one the action followed.
+    assert is_followed(action, decisions + [{**skill, "timestamp": 1005, "predicted_skill": "other"}])
+    assert not is_followed({**action, "target": "third"}, decisions + [{**skill, "timestamp": 1005, "predicted_skill": "other"}])
     assert is_followed(action, decisions + [{**skill, "timestamp": 1005, "decision": "fallback"}])
     for tool in ["Agent", "Task"]:
         assert is_followed({**action, "tool": tool, "target": "router-sonnet"}, decisions)
@@ -187,7 +189,7 @@ def test_pending_rejects_unmatched_actions_and_null_sessions():
     assert pending.expired(1400) == []
 
 
-def test_pending_dispatch_and_latest_decision():
+def test_pending_dispatch_and_older_decision():
     from router.tools.watch_decisions import PendingDecisions, is_followed
 
     model = {"router": "MODEL", "session_id": "s1", "timestamp": 1000,
@@ -205,9 +207,19 @@ def test_pending_dispatch_and_latest_decision():
     pending.add(new)
     pending.add(old)
     pending.resolve(action)
-    assert pending.expired(1100) == [new, old]
+    # The action satisfies the older suggestion; the newer unrelated one stays pending and expires.
+    assert pending.expired(1100) == [new]
     # Expiry never changes normal late FOLLOW matching.
     assert is_followed(action, [old])
+    assert is_followed(action, [old, new])
+
+    # Two suggestions for the same target: one action settles only the oldest.
+    twin = {**old, "timestamp": 1005}
+    pending = PendingDecisions()
+    pending.add(twin)
+    pending.add(old)
+    pending.resolve(action)
+    assert pending.expired(1100) == [twin]
 
 
 def test_ignored_format():

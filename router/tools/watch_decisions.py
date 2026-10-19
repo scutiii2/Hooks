@@ -75,11 +75,11 @@ def matching_decision(action: dict, decisions: list[dict]) -> dict | None:
                   if r.get("router") == router and r.get("decision") == "use"
                   and r.get("session_id") == session
                   and 0 <= action["timestamp"] - r["timestamp"] <= 300]
-    if not candidates:
-        return None
-    latest = max(candidates, key=lambda r: r["timestamp"])
-    target = latest.get("predicted_skill") if tool == "Skill" else DISPATCH.get(latest.get("predicted_size"))
-    return latest if action.get("target") == target else None
+    # The oldest suggestion this action satisfies: one action settles one decision, so a newer unrelated
+    # suggestion cannot hide it and make it expire as "ignored?".
+    matches = [r for r in candidates
+               if action.get("target") == (r.get("predicted_skill") if tool == "Skill" else DISPATCH.get(r.get("predicted_size")))]
+    return min(matches, key=lambda r: r["timestamp"]) if matches else None
 
 
 def is_followed(action: dict, decisions: list[dict]) -> bool:
