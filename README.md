@@ -74,7 +74,8 @@ Anything set in `.env` (`CONFIDENCE_THRESHOLD`, `SKILL_PICKER_BATCH_SIZE`) overr
 ## Skill router details
 
 - Confidence-tag format: `[SKILL_SUGGESTION skill=<name> confidence=<N>%]`
-- Catalog lives in `src/skill_router/catalog.py` — name + one-line purpose per skill. Keep it in sync by hand when skills are added/removed. `python -m src.tools.check_catalog` lists installed skills missing from it (built-in and remote skills show as "unverified"; that is normal).
+- The catalog is built on every hook run (`src/skill_router/catalog.py`) from the `SKILL.md` files of installed plugins and the `.claude/skills` of the current folder and its parents: name plus the first sentence of the description. Skills with `disable-model-invocation: true` are left out. `~/.claude/skills` is not scanned (here it only mirrors the remote `anthropic-skills:*`).
+- Skills with no usable file (Claude Code built-ins, remote `anthropic-skills:*`, a few plugin skills) are listed by hand in `src/skill_router/builtins.py`. A month after `VERIFIED`, the skill hook adds a `[BUILTIN_SKILLS_CHECK ...]` tag (at most once a day) asking Claude to compare that list with its own skill list, fix it and bump `VERIFIED`.
 - Jev only ever *names* a skill (or `"none"`) — never runs or writes anything.
 - Manual, on-demand test (no toggle needed): `python -m src.skill_router.pick "your request text"`
 - Always-on hook mode has its own switch (`data/state/skill_router_state.json`), independent of the model router.
@@ -104,7 +105,7 @@ src/
 │   ├── json_store.py   # base class for on/off-switch and stats files
 │   └── training_log.py # append-only JSONL logging for fine-tuning data
 ├── model_router/       # size classifier: state, toggle CLI, hook
-├── skill_router/       # skill picker: catalog, picker, state, toggle CLI, hook, manual pick CLI
+├── skill_router/       # skill picker: catalog, built-ins, picker, state, toggle CLI, hook, manual pick CLI
 ├── cli/                # shared ToggleCLI base class
 └── tools/              # label_review, export_training_data, manage_hooks, watch_decisions, log_followed
 

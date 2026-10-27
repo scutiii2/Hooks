@@ -69,8 +69,7 @@ class SkillPicker:
             return {"skill": "none", "confidence": 0,
                      "provider": _provider.NAME}
 
-        final = _provider.pick_skill(request, winners, timeout=timeout)
-        return final
+        return _provider.pick_skill(request, winners, timeout=timeout)
 
     def choose(self, request: str, timeout: float = 5.0) -> dict:
         """pick() + threshold logic.

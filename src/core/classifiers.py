@@ -15,13 +15,17 @@ from .env_load import load_env
 
 load_env()
 
-SIZES = ["tiny", "everyday", "large", "hardest"]
 SIZE_CRITERIA = {
     "tiny": "a lookup, a rename, a one-line answer",
     "everyday": "a normal email, post, or short document",
     "large": "a multi-step build, research, a full report",
     "hardest": "strategy, or anything where a wrong call is expensive",
 }
+
+
+def skill_criteria(skills: list) -> dict:
+    """Choice criteria for a skill batch: each (name, description), plus an escape hatch."""
+    return {**dict(skills), "none": "nothing here fits well"}
 
 
 class ClassifierError(Exception):
@@ -41,14 +45,12 @@ class Classifier(ABC):
 
     def classify_size(self, message: str, timeout: float = 3.0) -> dict:
         result = self.ask_choice(message, SIZE_CRITERIA, timeout)
-        if result["choice"] not in SIZES:
+        if result["choice"] not in SIZE_CRITERIA:
             raise ClassifierError(f"unknown size: {result['choice']!r}")
         return {"size": result["choice"], "confidence": result["confidence"]}
 
     def pick_skill_batch(self, request: str, skills: list, timeout: float = 5.0) -> dict:
-        criteria = {name: desc for name, desc in skills}
-        criteria["none"] = "nothing here fits well"
-        result = self.ask_choice(request, criteria, timeout)
+        result = self.ask_choice(request, skill_criteria(skills), timeout)
         return {"skill": result["choice"], "confidence": result["confidence"]}
 
 

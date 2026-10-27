@@ -19,9 +19,6 @@ class ModelRouterToggle(ToggleCLI):
         return (f"Router ON. Messages now get classified {self.via}.\n"
                 "Turn OFF for anything private: python -m src.model_router.toggle off")
 
-    def off_message(self):
-        return "Router OFF."
-
     def print_status(self):
         enabled = state.is_enabled()
         stats = state.get_stats()

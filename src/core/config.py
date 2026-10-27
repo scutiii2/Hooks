@@ -7,10 +7,11 @@ import json
 import os
 
 from .env_load import load_env
+from .json_store import merge_defaults
+from .paths import ROOT
 
 load_env()
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CONFIG_PATH = os.path.join(ROOT, "router_config.json")
 
 DEFAULTS = {
@@ -27,14 +28,7 @@ def _read_config() -> dict:
             data = json.load(f)
     except (json.JSONDecodeError, OSError):
         return dict(DEFAULTS)
-    for key, val in DEFAULTS.items():
-        if isinstance(val, dict):
-            data.setdefault(key, {})
-            for sub_key, sub_val in val.items():
-                data[key].setdefault(sub_key, sub_val)
-        else:
-            data.setdefault(key, val)
-    return data
+    return merge_defaults(data, DEFAULTS)
 
 
 def get_confidence_threshold(provider_name: str = "jev") -> int:

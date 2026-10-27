@@ -8,6 +8,7 @@ FOLLOW lines compare tool actions with the latest applicable suggestion in that 
 """
 import json
 import os
+import re
 import shutil
 import sys
 import time
@@ -18,6 +19,7 @@ from ..core.training_log import TRAINING_DIR
 
 RESET, DIM, GREEN, YELLOW, CYAN, RED = "\033[0m", "\033[2m", "\033[32m", "\033[33m", "\033[36m", "\033[31m"
 DISPATCH = {"tiny": "router-haiku", "everyday": "router-haiku", "large": "router-sonnet", "hardest": "router-sonnet"}
+ANSI = re.compile(r"\033\[[0-9;]*m")
 POLL_SECONDS = 0.3
 IGNORE_AFTER_SECONDS = 90
 
@@ -50,14 +52,6 @@ class LogTail:
             except ValueError:
                 continue
         return records
-
-    def skip_to_last(self, count: int) -> list[dict]:
-        """Move to the end of the file and return its last `count` records."""
-        return self.poll()[-count:] if count > 0 else self._discard()
-
-    def _discard(self) -> list[dict]:
-        self.poll()
-        return []
 
 
 def matching_decision(action: dict, decisions: list[dict]) -> dict | None:
@@ -106,8 +100,9 @@ class PendingDecisions:
         return expired
 
 
-def with_prompt(head: str, record: dict, room: int) -> str:
-    room = max(room, 10)
+def with_prompt(head: str, record: dict, width: int) -> str:
+    """Append the prompt, truncated to what is left of `width` after the (colour-coded) head."""
+    room = max(width - len(ANSI.sub("", head)) - 4, 10)
     prompt = " ".join(record["input_text"].split())
     if len(prompt) > room:
         prompt = prompt[: room - 3] + "..."
@@ -124,8 +119,7 @@ def format_ignored(record: dict, width: int) -> str:
         target = f"Skill({pick})"
     detail = f"{record['router']} {record.get('provider') or 'jev'} use {pick} -> {target}  no action in {IGNORE_AFTER_SECONDS}s"
     head = f"{DIM}{when}{RESET}  {CYAN}IGNORE{RESET}  {RED}ignored?{RESET}  {detail}"
-    visible = len(f"{when}  IGNORE  ignored?  {detail}")
-    return with_prompt(head, record, width - visible - 4)
+    return with_prompt(head, record, width)
 
 
 def format_record(record: dict, width: int, decisions: list[dict] = ()) -> str:
@@ -151,8 +145,7 @@ def format_record(record: dict, width: int, decisions: list[dict] = ()) -> str:
         action = f"-> Skill({pick})" if used else "no suggestion"
     elapsed = f"{record['elapsed_ms']}ms" if "elapsed_ms" in record else "-"  # older records carry no timing
     head = f"{DIM}{when}{RESET}  {CYAN}{record['router']:<5}{RESET}  {provider:<4}  {colour}{record['decision']:<8}{RESET}  {pick:<24.24}  {record['confidence']:>3}%/{threshold}%  {elapsed:>6}  {action}"
-    visible = len(f"{when}  {record['router']:<5}  {provider:<4}  {record['decision']:<8}  {pick:<24.24}  {record['confidence']:>3}%/{threshold}%  {elapsed:>6}  {action}")
-    return with_prompt(head, record, width - visible - 4)
+    return with_prompt(head, record, width)
 
 
 def main(argv: list[str]) -> int:

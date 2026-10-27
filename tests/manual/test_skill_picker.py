@@ -10,7 +10,7 @@ SAMPLES = [
     ("check every 10 minutes if the deploy finished", "loop"),
     ("make a chart of Q3 revenue by region", "dataviz"),
     ("set up a CLAUDE.md for this new repo", "init"),
-    ("resolve the merge conflicts in this rebase", "mattpocock-skills:resolving-merge-conflicts"),
+    ("this test fails intermittently, find out why", "mattpocock-skills:diagnosing-bugs"),
     ("write tests first then implement the retry logic", "superpowers:test-driven-development"),
     ("what's the weather like today", "none"),
     ("summarize this PDF for me", "anthropic-skills:pdf"),

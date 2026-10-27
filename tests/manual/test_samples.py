@@ -1,5 +1,6 @@
 """Run 10 sample messages through Jev directly and print a results table."""
 from src.core.classifiers import JevClassifier, ClassifierError
+from src.tools.watch_decisions import DISPATCH
 
 SAMPLES = [
     ("tiny?", "What's the capital of France?"),
@@ -14,14 +15,6 @@ SAMPLES = [
     ("short reply", "ok go ahead"),
 ]
 
-MODEL_MAP = {
-    "tiny": "haiku",
-    "everyday": "haiku",
-    "large": "sonnet",
-    "hardest": "sonnet",
-}
-
-
 def main():
     classifier = JevClassifier()
     rows = []
@@ -30,7 +23,7 @@ def main():
             result = classifier.classify_size(message, timeout=10.0)
             size = result["size"]
             conf = result["confidence"]
-            model = MODEL_MAP.get(size, "?")
+            model = DISPATCH.get(size, "?")
             rows.append((expected_hint, message, size, f"{conf}%", model))
         except ClassifierError as e:
             rows.append((expected_hint, message, "ERROR", str(e), "-"))

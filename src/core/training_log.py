@@ -4,7 +4,8 @@ import json
 import os
 import time
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from .paths import ROOT
+
 TRAINING_DIR = os.path.join(ROOT, "data", "training")
 
 

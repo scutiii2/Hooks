@@ -1,20 +1,12 @@
 """On/off switch and stats for the skill picker's always-on hook mode."""
 import os
 
-from ..core.json_store import JsonStore
+from ..core.json_store import JsonStore, SwitchState
+from ..core.paths import ROOT
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-
-class SkillRouterState(JsonStore):
+class SkillRouterState(SwitchState):
     path = os.path.join(ROOT, "data", "state", "skill_router_state.json")
-    defaults = {"enabled": False}
-
-    def is_enabled(self) -> bool:
-        return bool(self.read().get("enabled", False))
-
-    def set_enabled(self, value: bool):
-        self.write({"enabled": bool(value)})
 
 
 class SkillRouterStats(JsonStore):
@@ -22,19 +14,13 @@ class SkillRouterStats(JsonStore):
     defaults = {"used": 0, "fallback": 0, "skipped": 0, "jev_failures": 0}
 
     def record(self, decision: str):
-        stats = self.read()
-        stats["used" if decision == "use" else "fallback"] += 1
-        self.write(stats)
+        self.increment("used" if decision == "use" else "fallback")
 
     def record_skipped(self):
-        stats = self.read()
-        stats["skipped"] += 1
-        self.write(stats)
+        self.increment("skipped")
 
     def record_failure(self):
-        stats = self.read()
-        stats["jev_failures"] += 1
-        self.write(stats)
+        self.increment("jev_failures")
 
 
 _state = SkillRouterState()

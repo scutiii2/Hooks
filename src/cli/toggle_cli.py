@@ -10,12 +10,6 @@ class ToggleCLI:
     state = None
     via = "via Jev (TypeSafe API)"
 
-    def is_enabled(self) -> bool:
-        return self.state.is_enabled()
-
-    def set_enabled(self, value: bool):
-        self.state.set_enabled(value)
-
     def print_status(self):
         raise NotImplementedError
 
@@ -32,10 +26,10 @@ class ToggleCLI:
 
         cmd = argv[1]
         if cmd == "on":
-            self.set_enabled(True)
+            self.state.set_enabled(True)
             print(self.on_message())
         elif cmd == "off":
-            self.set_enabled(False)
+            self.state.set_enabled(False)
             print(self.off_message())
         elif cmd == "status":
             self.print_status()

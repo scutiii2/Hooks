@@ -1,20 +1,12 @@
 """On/off switch and usage stats for the model-size router."""
 import os
 
-from ..core.json_store import JsonStore
+from ..core.json_store import JsonStore, SwitchState
+from ..core.paths import ROOT
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-
-class RouterState(JsonStore):
+class RouterState(SwitchState):
     path = os.path.join(ROOT, "data", "state", "router_state.json")
-    defaults = {"enabled": False}
-
-    def is_enabled(self) -> bool:
-        return bool(self.read().get("enabled", False))
-
-    def set_enabled(self, value: bool):
-        self.write({"enabled": bool(value)})
 
 
 class RouterStats(JsonStore):
@@ -33,14 +25,10 @@ class RouterStats(JsonStore):
         self.write(stats)
 
     def record_jev_failure(self):
-        stats = self.read()
-        stats["jev_failures"] += 1
-        self.write(stats)
+        self.increment("jev_failures")
 
     def record_handled_by_me(self):
-        stats = self.read()
-        stats["handled_by_me"] += 1
-        self.write(stats)
+        self.increment("handled_by_me")
 
 
 # Module-level singletons — same call sites as before (state.is_enabled(), etc).

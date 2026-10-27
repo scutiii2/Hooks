@@ -3,44 +3,23 @@
 Contract: NEVER block, NEVER raise past this file. Any failure => behave as
 if the router doesn't exist (exit 0, no output).
 """
-import json
-import re
 import sys
 import time
 
-SHORT_REPLY_PATTERN = re.compile(
-    r"^\s*(yes|no|yeah|yep|nope|ok|okay|sure|do it|do that|make it|shorter|"
-    r"longer|that|it|please|thanks|go ahead|sounds good)\b",
-    re.IGNORECASE,
-)
-
-
-def is_short_contextual_reply(text: str) -> bool:
-    words = text.strip().split()
-    if len(words) <= 6 and SHORT_REPLY_PATTERN.match(text):
-        return True
-    if len(words) <= 3:
-        return True
-    return False
-
-
 def main():
     try:
-        raw = sys.stdin.read()
-        payload = json.loads(raw)
-        prompt = payload.get("prompt", "")
-        if isinstance(prompt, dict):
-            prompt = prompt.get("type", "") or ""
+        from ..core.hook_io import emit_tag, read_payload, should_skip
+
+        payload, prompt = read_payload()
 
         from . import state
         from ..core import provider
-        from ..core.privacy import is_private
         from ..core.training_log import failure_log, model_router_log
 
         if not state.is_enabled():
             sys.exit(0)
 
-        if not prompt or is_short_contextual_reply(prompt) or is_private(prompt):
+        if should_skip(prompt):
             state.record_handled_by_me()
             sys.exit(0)
 
@@ -72,12 +51,7 @@ def main():
 
         tag = (f"[ROUTER size={result['size']} confidence={result['confidence']}% "
                f"threshold={threshold}% decision={decision}]")
-        print(json.dumps({
-            "hookSpecificOutput": {
-                "hookEventName": "UserPromptSubmit",
-                "additionalContext": tag,
-            }
-        }))
+        emit_tag(tag)
         sys.exit(0)
     except Exception:
         # Absolute fallback: never block, never surface a broken hook.

@@ -206,22 +206,31 @@ def test_model_hook_injects_tag_and_logs():
 
 def test_skill_hook_injects_tag_skips_and_counts():
     from src.core import training_log
-    from src.skill_router import hook, picker, state
+    from src.skill_router import builtins, hook, picker, state
 
     result = {"skill": "pdf", "confidence": 75, "decision": "use", "provider": "jev", "error": None}
+    no_notice = patch.object(builtins, "due_notice", return_value=None)
     prompt = "make a pdf out of these notes please"
     out = _run_hook(hook, prompt, training_log.skill_router_log, [
         patch.object(state, "is_enabled", return_value=True),
-        patch.object(state, "record"),
+        patch.object(state, "record"), no_notice,
         patch.object(picker, "choose", return_value=result)])
     assert json.loads(out)["hookSpecificOutput"]["additionalContext"] == "[SKILL_SUGGESTION skill=pdf confidence=75%]"
     assert _run_hook.record["predicted_skill"] == "pdf" and "elapsed_ms" in _run_hook.record
 
     with patch.object(state, "record_skipped") as skipped:
         out = _run_hook(hook, "fix my .env file", training_log.skill_router_log, [
-            patch.object(state, "is_enabled", return_value=True),
+            patch.object(state, "is_enabled", return_value=True), no_notice,
             patch.object(picker, "choose", side_effect=AssertionError("private prompt was classified"))])
     assert out == "" and skipped.call_count == 1
+
+    notice = "[BUILTIN_SKILLS_CHECK verified=x age=40d] check"
+    out = _run_hook(hook, "make a pdf out of these notes please", training_log.skill_router_log, [
+        patch.object(state, "is_enabled", return_value=True), patch.object(state, "record"),
+        patch.object(builtins, "due_notice", return_value=notice),
+        patch.object(picker, "choose", return_value=result)])
+    assert json.loads(out)["hookSpecificOutput"]["additionalContext"] == (
+        notice + chr(10) + "[SKILL_SUGGESTION skill=pdf confidence=75%]")
 
 
 def test_log_rotates_when_full():
@@ -237,6 +246,52 @@ def test_log_rotates_when_full():
             log.append({"a": "y"})
         assert len(Path(log.path + ".1").read_text(encoding="utf-8").splitlines()) == 1
         assert len(log.read_all()) == 1
+
+
+def test_catalog_reads_skill_files_and_builtins():
+    import tempfile
+    from pathlib import Path
+    from src.skill_router import catalog
+
+    def doc(*lines):
+        return "\n".join(lines)
+
+    files = {"a": doc("---", "name: alpha", 'description: "Does A. More detail."', "---", "body"),
+             "b": doc("---", "name: beta", "description: >", "  Folded text", "  continues here.", "---"),
+             "deep/c": doc("---", "name: gamma", "description: C", "disable-model-invocation: true", "---"),
+             "d": "no frontmatter"}
+    with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
+        for name, text in files.items():
+            (Path(tmp) / name).mkdir(parents=True, exist_ok=True)
+            (Path(tmp) / name / "SKILL.md").write_text(text, encoding="utf-8")
+        found = catalog.skills_in(tmp, "p:")
+    assert found == {"p:alpha": "Does A", "p:beta": "Folded text continues here", "p:d": ""}
+    assert catalog.one_line("x" * 500).endswith("...") and len(catalog.one_line("x" * 500)) == catalog.MAX_DESCRIPTION
+    assert dict(catalog.SKILLS).keys() >= set(catalog.BUILTINS)
+
+
+def test_builtins_check_is_due_monthly():
+    import datetime
+    import tempfile
+    from pathlib import Path
+    from src.skill_router import builtins
+
+    verified = datetime.date.fromisoformat(builtins.VERIFIED)
+    with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp,             patch.object(builtins._Reminded, "path", str(Path(tmp) / "r.json")):
+        assert builtins.due_notice(verified + datetime.timedelta(days=29)) is None
+        late = verified + datetime.timedelta(days=31)
+        assert "age=31d" in builtins.due_notice(late)
+        assert builtins.due_notice(late) is None  # already reminded today
+        assert builtins.due_notice(late + datetime.timedelta(days=1)) is not None
+
+
+def test_skip_rules():
+    from src.core.hook_io import should_skip
+
+    for text in ["", "  ", "yes do that please now ok", "go ahead", "fix .env now please"]:
+        assert should_skip(text), text
+    for text in ["write a long detailed report please", "yes do that please now and then some more"]:
+        assert not should_skip(text), text
 
 
 def test_calibrate_load_reads_rotated_backup():

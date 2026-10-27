@@ -1,9 +1,10 @@
 """Minimal .env loader, no external deps."""
 import os
 
+from .paths import ROOT
+
 def load_env():
-    here = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    env_path = os.path.join(here, ".env")
+    env_path = os.path.join(ROOT, ".env")
     if not os.path.exists(env_path):
         return
     with open(env_path, "r", encoding="utf-8") as f:

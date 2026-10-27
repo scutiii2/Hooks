@@ -12,18 +12,12 @@ fine-tuning on (a few hundred cases at least).
 import json
 import sys
 
+from ..core.classifiers import SIZE_CRITERIA, skill_criteria
 from ..core.training_log import labeled_log
-from ..core.classifiers import SIZE_CRITERIA
 from ..skill_router.catalog import SKILLS
+from .label_review import KIND_CONFIG
 
-MODEL_CRITERIA = SIZE_CRITERIA
-SKILL_CRITERIA = {name: desc for name, desc in SKILLS}
-SKILL_CRITERIA["none"] = "nothing here fits well"
-
-KIND_CONFIG = {
-    "model": {"kind": "model_router", "gold_field": "size", "criteria": MODEL_CRITERIA},
-    "skill": {"kind": "skill_router", "gold_field": "skill", "criteria": SKILL_CRITERIA},
-}
+CRITERIA = {"model": SIZE_CRITERIA, "skill": skill_criteria(SKILLS)}
 
 
 def main():
@@ -32,6 +26,7 @@ def main():
         sys.exit(1)
 
     cfg = KIND_CONFIG[sys.argv[1]]
+    criteria = CRITERIA[sys.argv[1]]
     entries = [r for r in labeled_log.read_all() if r.get("kind") == cfg["kind"]]
 
     if not entries:
@@ -50,7 +45,7 @@ def main():
                 "choice": {
                     "type": "choice",
                     "instructions": "Pick the single best-fitting option.",
-                    "criteria": cfg["criteria"],
+                    "criteria": criteria,
                 }
             },
             "gold": {"choice": gold},

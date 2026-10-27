@@ -4,32 +4,36 @@ Contract: NEVER block, NEVER raise past this file, NEVER run/write anything.
 Jev only names a skill. This hook only suggests via additionalContext — it
 does not and cannot force-load a skill. Any failure => silent no-op.
 """
-import json
 import sys
 import time
 
 
+def _exit(tags: list[str]):
+    from ..core.hook_io import emit_tag
+
+    if tags:
+        emit_tag(*tags)
+    sys.exit(0)
+
+
 def main():
     try:
-        raw = sys.stdin.read()
-        payload = json.loads(raw)
-        prompt = payload.get("prompt", "")
-        if isinstance(prompt, dict):
-            prompt = prompt.get("type", "") or ""
+        from ..core.hook_io import read_payload, should_skip
 
-        from . import state
-        from . import picker
+        payload, prompt = read_payload()
+
+        from . import builtins, picker, state
         from ..core.training_log import failure_log, skill_router_log
 
         if not state.is_enabled():
             sys.exit(0)
 
-        from ..core.privacy import is_private
-        from ..model_router.hook import is_short_contextual_reply
+        notice = builtins.due_notice()
+        tags = [notice] if notice else []
 
-        if not prompt.strip() or is_short_contextual_reply(prompt) or is_private(prompt):
+        if should_skip(prompt):
             state.record_skipped()
-            sys.exit(0)
+            _exit(tags)
 
         started = time.perf_counter()
         result = picker.choose(prompt, timeout=3.0)
@@ -38,7 +42,7 @@ def main():
         if result["error"]:
             state.record_failure()
             failure_log.append({"source": "SKILL", "error": result["error"][:200], "elapsed_ms": elapsed_ms})
-            sys.exit(0)
+            _exit(tags)
 
         state.record(result["decision"])
 
@@ -52,17 +56,9 @@ def main():
             "elapsed_ms": elapsed_ms,
         })
 
-        if result["decision"] != "use":
-            sys.exit(0)
-
-        tag = f"[SKILL_SUGGESTION skill={result['skill']} confidence={result['confidence']}%]"
-        print(json.dumps({
-            "hookSpecificOutput": {
-                "hookEventName": "UserPromptSubmit",
-                "additionalContext": tag,
-            }
-        }))
-        sys.exit(0)
+        if result["decision"] == "use":
+            tags.append(f"[SKILL_SUGGESTION skill={result['skill']} confidence={result['confidence']}%]")
+        _exit(tags)
     except Exception:
         sys.exit(0)
 

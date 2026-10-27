@@ -13,7 +13,9 @@ import json
 import os
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))).replace("\\", "/")
+from ..core import paths
+
+ROOT = paths.ROOT.replace("\\", "/")
 DEFAULT_TARGET = os.path.join(os.path.expanduser("~"), ".claude", "settings.json")
 
 # Forward slashes and exec form (command + args, no shell) — Claude Code on
@@ -101,8 +103,7 @@ def remove(target: str):
         data.pop("hooks", None)
 
     _save(target, data)
-    print(f"Removed {removed} hook(s) from {target}" if removed
-          else f"No matching hooks found in {target}.")
+    print(f"Removed {removed} hook(s) from {target}")
 
 
 def main():
