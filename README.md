@@ -52,7 +52,7 @@ Or hand-edit `data/state/router_state.json` / `data/state/skill_router_state.jso
 
 With `provider=laya` the hooks send each classification to LayaModel (`../LayaModel`, `POST /v1/ask`), which owns the model and often runs on another device. This project loads no Laya model. If LayaModel does not answer (device off, network down, error), the same call goes to Jev, and the decision is judged against Jev's threshold. Jev needs `TYPESAFE_API_KEY`; without it a Laya outage means no tag for that prompt.
 
-Set in `router_config.json` or `.env` (`.env` wins): `laya_url` / `LAYA_URL` (default `http://127.0.0.1:9120`), `laya_strategy` / `LAYA_STRATEGY` (default `english-only`, see the LayaModel README), and `LAYA_TOKEN` in `.env` if the service requires one. Laya gets half of the hook's timeout; Jev gets the rest. Check the service with `curl <laya_url>/health`; `watch_decisions` shows it as up/down.
+Set in `router_config.json` or `.env` (`.env` wins): `laya_url` / `LAYA_URL` (default `http://127.0.0.1:9120`), `laya_strategy` / `LAYA_STRATEGY` (default `english-only`, see the LayaModel README), and `LAYA_TOKEN` in `.env` (a project token made on the service's `/admin/` page; needed when the service has `LAYA_ADMIN_PASSWORD` set, and not the admin password itself). Laya gets half of the hook's timeout; Jev gets the rest. Check the service with `curl <laya_url>/health`; `watch_decisions` shows it as up/down.
 
 ## Configuration
 
