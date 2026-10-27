@@ -151,6 +151,16 @@ def test_hook_logs_failures():
     assert record["source"] == "MODEL" and record["error"] == "HTTP 503: down" and "elapsed_ms" in record
 
 
+def test_privacy_filter():
+    from src.core.privacy import is_private
+
+    for text in ["fix my .env file", "the API key leaked", "my password is x", "rotate the ssh key",
+                 "export OPENAI=sk-abcdef123456", "use the access token", "Secret handling"]:
+        assert is_private(text), text
+    for text in ["count the tokens in this prompt", "sort a dict by key", "write the readme", "environment setup"]:
+        assert not is_private(text), text
+
+
 if __name__ == "__main__":
     for name, test in list(globals().items()):
         if name.startswith("test_"):

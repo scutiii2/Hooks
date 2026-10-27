@@ -44,7 +44,7 @@ scripts\router_toggle.bat skill on|off|status
 
 Or hand-edit `data/state/router_state.json` / `data/state/skill_router_state.json` directly — `{"enabled": true|false}`.
 
-**Privacy note**: every message you send while a router is ON is sent to TypeSafe AI (Jev's maker) over its API. Keep the routers off for private work.
+**Privacy note**: every message you send while a router is ON is sent to TypeSafe AI (Jev's maker) over its API. Keep the routers off for private work. Prompts that mention secrets (`.env`, passwords, API/SSH/private keys, access tokens, credentials, `sk-…` keys; see `src/core/privacy.py`) are skipped automatically, but that match is a safety net, not a guarantee.
 
 ## Configuration
 
@@ -108,7 +108,7 @@ src/
 ├── cli/                # shared ToggleCLI base class
 └── tools/              # label_review, export_training_data, manage_hooks, watch_decisions, log_followed
 
-tests/                  # offline tests; tests/manual/ holds real-classifier scripts (run with python -m tests.manual.<name>)
+tests/                  # offline tests (`pytest tests`); tests/manual/ holds real-classifier scripts (run with python -m tests.manual.<name>)
 scripts/                # Windows launchers: router_toggle.bat, manage_hooks.bat, watch_decisions.bat
 data/                   # generated, gitignored: state/, stats/, training/
 .claude/                # settings.json (hooks), agents/ (router-haiku.md, router-sonnet.md)

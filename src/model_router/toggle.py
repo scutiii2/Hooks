@@ -13,20 +13,14 @@ from ..cli.toggle_cli import ToggleCLI
 
 class ModelRouterToggle(ToggleCLI):
     usage = "Usage: python -m src.model_router.toggle on|off|status"
+    state = state
 
     def on_message(self):
-        via = "via Jev (TypeSafe API)"
-        return (f"Router ON. Messages now get classified {via}.\n"
+        return (f"Router ON. Messages now get classified {self.via}.\n"
                 "Turn OFF for anything private: python -m src.model_router.toggle off")
 
     def off_message(self):
         return "Router OFF."
-
-    def is_enabled(self):
-        return state.is_enabled()
-
-    def set_enabled(self, value):
-        state.set_enabled(value)
 
     def print_status(self):
         enabled = state.is_enabled()

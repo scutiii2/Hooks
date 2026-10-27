@@ -13,20 +13,14 @@ from ..cli.toggle_cli import ToggleCLI
 
 class SkillRouterToggle(ToggleCLI):
     usage = "Usage: python -m src.skill_router.toggle on|off|status"
+    state = state
 
     def on_message(self):
-        via = "via Jev (TypeSafe API)"
-        return (f"Skill picker ON for every message. Requests now get classified {via}.\n"
+        return (f"Skill picker ON for every message. Requests now get classified {self.via}.\n"
                 "Turn OFF for anything private: python -m src.skill_router.toggle off")
 
     def off_message(self):
         return "Skill picker (always-on mode) OFF. Manual `pick.py` still works."
-
-    def is_enabled(self):
-        return state.is_enabled()
-
-    def set_enabled(self, value):
-        state.set_enabled(value)
 
     def print_status(self):
         enabled = state.is_enabled()

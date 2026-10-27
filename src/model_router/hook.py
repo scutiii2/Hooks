@@ -34,12 +34,13 @@ def main():
 
         from . import state
         from ..core import provider
+        from ..core.privacy import is_private
         from ..core.training_log import failure_log, model_router_log
 
         if not state.is_enabled():
             sys.exit(0)
 
-        if not prompt or is_short_contextual_reply(prompt):
+        if not prompt or is_short_contextual_reply(prompt) or is_private(prompt):
             state.record_handled_by_me()
             sys.exit(0)
 

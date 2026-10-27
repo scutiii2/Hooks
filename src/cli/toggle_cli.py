@@ -4,15 +4,17 @@ import sys
 
 class ToggleCLI:
     """Subclass and set `usage`, `on_message`, `off_message`, and implement
-    `is_enabled()`, `set_enabled(bool)`, `print_status()`."""
+    `print_status()`. `state` is the router's state module (is_enabled / set_enabled)."""
 
     usage = "Usage: <script> on|off|status"
+    state = None
+    via = "via Jev (TypeSafe API)"
 
     def is_enabled(self) -> bool:
-        raise NotImplementedError
+        return self.state.is_enabled()
 
     def set_enabled(self, value: bool):
-        raise NotImplementedError
+        self.state.set_enabled(value)
 
     def print_status(self):
         raise NotImplementedError

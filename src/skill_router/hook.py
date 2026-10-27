@@ -24,9 +24,10 @@ def main():
         if not state.is_enabled():
             sys.exit(0)
 
+        from ..core.privacy import is_private
         from ..model_router.hook import is_short_contextual_reply
 
-        if not prompt.strip() or is_short_contextual_reply(prompt):
+        if not prompt.strip() or is_short_contextual_reply(prompt) or is_private(prompt):
             sys.exit(0)
 
         started = time.perf_counter()
