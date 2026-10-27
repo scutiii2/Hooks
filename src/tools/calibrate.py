@@ -1,17 +1,21 @@
 """Per-confidence follow rate of `use` decisions, to judge where the threshold should sit.
 
-    python -m src.tools.calibrate
+    python -m src.tools.calibrate [--since EPOCH_SECONDS]
 
 Only `use` decisions can be followed (a `fallback` never asks Claude to act), so this can say whether
 a higher threshold would drop mostly-ignored suggestions, not whether a lower one would add good ones.
 """
 import json
 import os
+import sys
 
 from ..core.training_log import TRAINING_DIR
 from .watch_decisions import matching_decision
 
 BUCKETS = [(60, 69), (70, 79), (80, 89), (90, 100)]
+# Last decision logged under the old Laya threshold (25); the logs were relabelled "jev" afterwards,
+# so provider cannot tell the eras apart.
+JEV_ONLY_SINCE = 1793069483.11
 
 
 def load(filename: str, router: str) -> list[dict]:
@@ -22,8 +26,9 @@ def load(filename: str, router: str) -> list[dict]:
         return [{**json.loads(line), "router": router} for line in f if line.strip()]
 
 
-def report(router: str, decisions: list[dict], actions: list[dict]):
-    used = [d for d in decisions if d.get("decision") == "use" and d.get("session_id")]
+def report(router: str, decisions: list[dict], actions: list[dict], since: float):
+    used = [d for d in decisions
+            if d.get("decision") == "use" and d.get("session_id") and d["timestamp"] > since]
     print(f"\n{router}: {len(used)} use decisions with a session")
     for low, high in BUCKETS:
         rows = [d for d in used if low <= d["confidence"] <= high]
@@ -38,11 +43,12 @@ def report(router: str, decisions: list[dict], actions: list[dict]):
         print(f"  {low:>3}-{high:<3}%  n={len(rows):<4} followed={followed:<4} {rate}")
 
 
-def main():
+def main(argv: list[str]):
+    since = float(argv[argv.index("--since") + 1]) if "--since" in argv else JEV_ONLY_SINCE
     actions = load("followed_log.jsonl", "FOLLOW")
-    report("MODEL", load("model_router_log.jsonl", "MODEL"), actions)
-    report("SKILL", load("skill_router_log.jsonl", "SKILL"), actions)
+    report("MODEL", load("model_router_log.jsonl", "MODEL"), actions, since)
+    report("SKILL", load("skill_router_log.jsonl", "SKILL"), actions, since)
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
