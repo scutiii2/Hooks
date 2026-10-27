@@ -146,8 +146,9 @@ def format_record(record: dict, width: int, decisions: list[dict] = ()) -> str:
     else:
         pick = record["predicted_skill"]
         action = f"-> Skill({pick})" if used else "no suggestion"
-    head = f"{DIM}{when}{RESET}  {CYAN}{record['router']:<5}{RESET}  {provider:<4}  {colour}{record['decision']:<8}{RESET}  {pick:<24.24}  {record['confidence']:>3}%/{threshold}%  {action}"
-    visible = len(f"{when}  {record['router']:<5}  {provider:<4}  {record['decision']:<8}  {pick:<24.24}  {record['confidence']:>3}%/{threshold}%  {action}")
+    elapsed = f"{record['elapsed_ms']}ms" if "elapsed_ms" in record else "-"  # older records carry no timing
+    head = f"{DIM}{when}{RESET}  {CYAN}{record['router']:<5}{RESET}  {provider:<4}  {colour}{record['decision']:<8}{RESET}  {pick:<24.24}  {record['confidence']:>3}%/{threshold}%  {elapsed:>6}  {action}"
+    visible = len(f"{when}  {record['router']:<5}  {provider:<4}  {record['decision']:<8}  {pick:<24.24}  {record['confidence']:>3}%/{threshold}%  {elapsed:>6}  {action}")
     return with_prompt(head, record, width - visible - 4)
 
 

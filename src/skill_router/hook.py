@@ -6,6 +6,7 @@ does not and cannot force-load a skill. Any failure => silent no-op.
 """
 import json
 import sys
+import time
 
 
 def main():
@@ -28,7 +29,9 @@ def main():
         if not prompt.strip() or is_short_contextual_reply(prompt):
             sys.exit(0)
 
+        started = time.perf_counter()
         result = picker.choose(prompt, timeout=3.0)
+        elapsed_ms = round((time.perf_counter() - started) * 1000)
 
         if result["error"]:
             state.record_failure()
@@ -43,6 +46,7 @@ def main():
             "confidence": result["confidence"],
             "decision": result["decision"],
             "provider": result["provider"],
+            "elapsed_ms": elapsed_ms,
         })
 
         if result["decision"] != "use":

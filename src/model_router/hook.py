@@ -6,6 +6,7 @@ if the router doesn't exist (exit 0, no output).
 import json
 import re
 import sys
+import time
 
 SHORT_REPLY_PATTERN = re.compile(
     r"^\s*(yes|no|yeah|yep|nope|ok|okay|sure|do it|do that|make it|shorter|"
@@ -42,11 +43,13 @@ def main():
             state.record_handled_by_me()
             sys.exit(0)
 
+        started = time.perf_counter()
         try:
             result = provider.classify_size(prompt, timeout=3.0)
         except provider.ProviderError:
             state.record_jev_failure()
             sys.exit(0)
+        elapsed_ms = round((time.perf_counter() - started) * 1000)
 
         state.record_classification(result["size"])
 
@@ -61,6 +64,7 @@ def main():
             "threshold": threshold,
             "decision": decision,
             "provider": result["provider"],
+            "elapsed_ms": elapsed_ms,
         })
 
         tag = (f"[ROUTER size={result['size']} confidence={result['confidence']}% "
