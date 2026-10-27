@@ -74,7 +74,7 @@ Anything set in `.env` (`CONFIDENCE_THRESHOLD`, `SKILL_PICKER_BATCH_SIZE`) overr
 ## Skill router details
 
 - Confidence-tag format: `[SKILL_SUGGESTION skill=<name> confidence=<N>%]`
-- Catalog lives in `src/skill_router/catalog.py` — name + one-line purpose per skill. Keep it in sync by hand when skills are added/removed.
+- Catalog lives in `src/skill_router/catalog.py` — name + one-line purpose per skill. Keep it in sync by hand when skills are added/removed. `python -m src.tools.check_catalog` lists installed skills missing from it (built-in and remote skills show as "unverified"; that is normal).
 - Jev only ever *names* a skill (or `"none"`) — never runs or writes anything.
 - Manual, on-demand test (no toggle needed): `python -m src.skill_router.pick "your request text"`
 - Always-on hook mode has its own switch (`data/state/skill_router_state.json`), independent of the model router.
