@@ -124,7 +124,7 @@ def format_ignored(record: dict, width: int) -> str:
     else:
         pick = record["predicted_skill"]
         target = f"Skill({pick})"
-    detail = f"{record['router']} use {pick} -> {target}  no action in {IGNORE_AFTER_SECONDS}s"
+    detail = f"{record['router']} {record.get('provider') or 'laya'} use {pick} -> {target}  no action in {IGNORE_AFTER_SECONDS}s"
     head = f"{DIM}{when}{RESET}  {CYAN}IGNORE{RESET}  {RED}ignored?{RESET}  {detail}"
     visible = len(f"{when}  IGNORE  ignored?  {detail}")
     return with_prompt(head, record, width - visible - 4)
@@ -139,7 +139,8 @@ def format_record(record: dict, width: int, decisions: list[dict] = ()) -> str:
                 f"{record['tool']}({record['target']})")
     used = record["decision"] == "use"
     colour = GREEN if used else YELLOW
-    threshold = config.get_confidence_threshold(record.get("provider", "laya"))
+    provider = record.get("provider") or "laya"  # records from before the Jev fallback carry no provider
+    threshold = config.get_confidence_threshold(provider)
     if record["router"] == "MODEL":
         pick = record["predicted_size"]
         threshold = record.get("threshold", threshold)
@@ -147,8 +148,8 @@ def format_record(record: dict, width: int, decisions: list[dict] = ()) -> str:
     else:
         pick = record["predicted_skill"]
         action = f"-> Skill({pick})" if used else "no suggestion"
-    head = f"{DIM}{when}{RESET}  {CYAN}{record['router']:<5}{RESET}  {colour}{record['decision']:<8}{RESET}  {pick:<24.24}  {record['confidence']:>3}%/{threshold}%  {action}"
-    visible = len(f"{when}  {record['router']:<5}  {record['decision']:<8}  {pick:<24.24}  {record['confidence']:>3}%/{threshold}%  {action}")
+    head = f"{DIM}{when}{RESET}  {CYAN}{record['router']:<5}{RESET}  {provider:<4}  {colour}{record['decision']:<8}{RESET}  {pick:<24.24}  {record['confidence']:>3}%/{threshold}%  {action}"
+    visible = len(f"{when}  {record['router']:<5}  {provider:<4}  {record['decision']:<8}  {pick:<24.24}  {record['confidence']:>3}%/{threshold}%  {action}")
     return with_prompt(head, record, width - visible - 4)
 
 

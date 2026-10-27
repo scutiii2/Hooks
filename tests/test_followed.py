@@ -229,11 +229,11 @@ def test_ignored_format():
                 "decision": "use", "predicted_size": "large", "input_text": "long prompt " * 30}
     line = format_ignored(decision, 120)
     assert RED + "ignored?" in line
-    assert "MODEL use large -> router-sonnet" in line
+    assert "MODEL laya use large -> router-sonnet" in line
     assert "no action in 90s" in line
     assert '..."' in line
     skill = {**decision, "router": "SKILL", "predicted_skill": "loop"}
-    assert "SKILL use loop -> Skill(loop)" in format_ignored(skill, 120)
+    assert "SKILL laya use loop -> Skill(loop)" in format_ignored(skill, 120)
 
 
 if __name__ == "__main__":
