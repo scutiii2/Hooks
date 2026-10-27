@@ -43,11 +43,30 @@ def report(router: str, decisions: list[dict], actions: list[dict], since: float
         print(f"  {low:>3}-{high:<3}%  n={len(rows):<4} followed={followed:<4} {rate}")
 
 
+def percentile(sorted_values: list[int], pct: int) -> int:
+    return sorted_values[min(len(sorted_values) - 1, len(sorted_values) * pct // 100)]
+
+
+def latency(router: str, decisions: list[dict], failures: list[dict], since: float):
+    times = sorted(d["elapsed_ms"] for d in decisions if "elapsed_ms" in d and d["timestamp"] > since)
+    failed = sum(1 for f in failures if f.get("source") == router and f["timestamp"] > since)
+    if not times:
+        print(f"{router} latency: no timed decisions, {failed} failures")
+        return
+    print(f"{router} latency: n={len(times)} p50={percentile(times, 50)}ms p95={percentile(times, 95)}ms "
+          f"max={times[-1]}ms, {failed} failures")
+
+
 def main(argv: list[str]):
     since = float(argv[argv.index("--since") + 1]) if "--since" in argv else JEV_ONLY_SINCE
     actions = load("followed_log.jsonl", "FOLLOW")
-    report("MODEL", load("model_router_log.jsonl", "MODEL"), actions, since)
-    report("SKILL", load("skill_router_log.jsonl", "SKILL"), actions, since)
+    model, skill = load("model_router_log.jsonl", "MODEL"), load("skill_router_log.jsonl", "SKILL")
+    failures = load("failures_log.jsonl", "FAIL")
+    report("MODEL", model, actions, since)
+    report("SKILL", skill, actions, since)
+    print()
+    latency("MODEL", model, failures, since)
+    latency("SKILL", skill, failures, since)
 
 
 if __name__ == "__main__":

@@ -19,11 +19,16 @@ class SkillRouterState(JsonStore):
 
 class SkillRouterStats(JsonStore):
     path = os.path.join(ROOT, "data", "stats", "skill_router_stats.json")
-    defaults = {"used": 0, "fallback": 0, "jev_failures": 0}
+    defaults = {"used": 0, "fallback": 0, "skipped": 0, "jev_failures": 0}
 
     def record(self, decision: str):
         stats = self.read()
         stats["used" if decision == "use" else "fallback"] += 1
+        self.write(stats)
+
+    def record_skipped(self):
+        stats = self.read()
+        stats["skipped"] += 1
         self.write(stats)
 
     def record_failure(self):
@@ -39,4 +44,5 @@ is_enabled = _state.is_enabled
 set_enabled = _state.set_enabled
 get_stats = _stats.read
 record = _stats.record
+record_skipped = _stats.record_skipped
 record_failure = _stats.record_failure

@@ -28,6 +28,7 @@ def main():
         from ..model_router.hook import is_short_contextual_reply
 
         if not prompt.strip() or is_short_contextual_reply(prompt) or is_private(prompt):
+            state.record_skipped()
             sys.exit(0)
 
         started = time.perf_counter()

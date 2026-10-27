@@ -8,12 +8,24 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 TRAINING_DIR = os.path.join(ROOT, "data", "training")
 
 
+MAX_BYTES = 10 * 1024 * 1024
+
+
 class JsonlLog:
     def __init__(self, filename: str):
         os.makedirs(TRAINING_DIR, exist_ok=True)
         self.path = os.path.join(TRAINING_DIR, filename)
 
+    def _rotate(self):
+        """Move a full log to `<name>.1`, replacing the previous backup (only one is kept)."""
+        try:
+            if os.path.getsize(self.path) > MAX_BYTES:
+                os.replace(self.path, self.path + ".1")
+        except OSError:
+            pass  # missing file, or another hook holds it open (Windows): try again on the next append
+
     def append(self, record: dict):
+        self._rotate()
         record = {"timestamp": time.time(), **record}
         with open(self.path, "a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")

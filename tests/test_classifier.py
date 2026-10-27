@@ -167,6 +167,97 @@ def test_privacy_filter():
         assert not is_private(text), text
 
 
+def _run_hook(hook, prompt, log, patches) -> str:
+    import contextlib
+    import tempfile
+    from pathlib import Path
+
+    payload = json.dumps({"session_id": "s", "prompt": prompt})
+    out = io.StringIO()
+    with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
+        path = Path(tmp) / "log.jsonl"
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(log, "path", str(path)))
+            for p in patches:
+                stack.enter_context(p)
+            stack.enter_context(patch("sys.stdin", io.StringIO(payload)))
+            stack.enter_context(contextlib.redirect_stdout(out))
+            stack.enter_context(contextlib.suppress(SystemExit))
+            hook.main()
+        _run_hook.record = json.loads(path.read_text(encoding="utf-8").splitlines()[0]) if path.exists() else None
+    return out.getvalue()
+
+
+def test_model_hook_injects_tag_and_logs():
+    from src.core import provider, training_log
+    from src.model_router import hook, state
+
+    result = {"size": "large", "confidence": 80, "provider": "jev"}
+    for threshold, decision in ((60, "use"), (90, "fallback")):
+        out = _run_hook(hook, "write a long detailed report please", training_log.model_router_log, [
+            patch.object(state, "is_enabled", return_value=True),
+            patch.object(state, "record_classification"),
+            patch.object(provider, "classify_size", return_value=result),
+            patch.object(provider, "get_threshold", return_value=threshold)])
+        tag = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+        assert tag == f"[ROUTER size=large confidence=80% threshold={threshold}% decision={decision}]"
+        assert _run_hook.record["decision"] == decision and "elapsed_ms" in _run_hook.record
+
+
+def test_skill_hook_injects_tag_skips_and_counts():
+    from src.core import training_log
+    from src.skill_router import hook, picker, state
+
+    result = {"skill": "pdf", "confidence": 75, "decision": "use", "provider": "jev", "error": None}
+    prompt = "make a pdf out of these notes please"
+    out = _run_hook(hook, prompt, training_log.skill_router_log, [
+        patch.object(state, "is_enabled", return_value=True),
+        patch.object(state, "record"),
+        patch.object(picker, "choose", return_value=result)])
+    assert json.loads(out)["hookSpecificOutput"]["additionalContext"] == "[SKILL_SUGGESTION skill=pdf confidence=75%]"
+    assert _run_hook.record["predicted_skill"] == "pdf" and "elapsed_ms" in _run_hook.record
+
+    with patch.object(state, "record_skipped") as skipped:
+        out = _run_hook(hook, "fix my .env file", training_log.skill_router_log, [
+            patch.object(state, "is_enabled", return_value=True),
+            patch.object(picker, "choose", side_effect=AssertionError("private prompt was classified"))])
+    assert out == "" and skipped.call_count == 1
+
+
+def test_log_rotates_when_full():
+    import tempfile
+    from pathlib import Path
+    from src.core import training_log
+
+    with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
+        log = training_log.JsonlLog("t.jsonl")
+        log.path = str(Path(tmp) / "t.jsonl")
+        with patch.object(training_log, "MAX_BYTES", 50):
+            log.append({"a": "x" * 60})
+            log.append({"a": "y"})
+        assert len(Path(log.path + ".1").read_text(encoding="utf-8").splitlines()) == 1
+        assert len(log.read_all()) == 1
+
+
+def test_latency_percentiles():
+    from src.tools.calibrate import percentile
+
+    assert percentile([10, 20, 30, 40], 50) == 30
+    assert percentile([10, 20, 30, 40], 95) == 40
+    assert percentile([7], 95) == 7
+
+
+def test_watcher_formats_latency_and_failures():
+    from src.tools.watch_decisions import format_record
+
+    base = {"timestamp": 1.0, "input_text": "hello", "confidence": 80, "decision": "use", "provider": "jev"}
+    timed = format_record({**base, "router": "MODEL", "predicted_size": "large", "elapsed_ms": 412}, 200)
+    assert "412ms" in timed and "router-sonnet" in timed
+    assert "-" in format_record({**base, "router": "SKILL", "predicted_skill": "pdf"}, 200)  # older record, no timing
+    failed = format_record({"timestamp": 1.0, "router": "FAIL", "source": "SKILL", "error": "HTTP 503", "elapsed_ms": 9}, 200)
+    assert "SKILL" in failed and "HTTP 503" in failed and "9ms" in failed
+
+
 if __name__ == "__main__":
     for name, test in list(globals().items()):
         if name.startswith("test_"):

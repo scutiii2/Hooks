@@ -28,6 +28,7 @@ class SkillRouterToggle(ToggleCLI):
         print(f"Always-on skill picker: {'ON' if enabled else 'OFF'}")
         print(f"Used Jev's pick: {stats['used']}")
         print(f"Fell back to normal matching: {stats['fallback']}")
+        print(f"Skipped (short or private prompt): {stats['skipped']}")
         print(f"Jev failures: {stats['jev_failures']}")
 
 
