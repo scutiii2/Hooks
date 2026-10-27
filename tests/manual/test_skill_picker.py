@@ -1,6 +1,6 @@
 """Run 10 real requests through the skill picker, flag misses vs expected."""
-from ..skill_router import picker as skill_picker
-from ..core import provider
+from src.skill_router import picker as skill_picker
+from src.core import provider
 
 # (request, expected skill or None if no skill should fire)
 SAMPLES = [

@@ -3,8 +3,8 @@ settings.json (project-level or user-level `~/.claude/settings.json`),
 without touching anything else already in that file.
 
 Usage:
-    python -m router.tools.manage_hooks add    [target_settings_json_path]
-    python -m router.tools.manage_hooks remove [target_settings_json_path]
+    python -m src.tools.manage_hooks add    [target_settings_json_path]
+    python -m src.tools.manage_hooks remove [target_settings_json_path]
 
 With no path given, defaults to the user-level settings file
 (~/.claude/settings.json), so the hooks apply in every directory.
@@ -24,12 +24,12 @@ DEFAULT_TARGET = os.path.join(os.path.expanduser("~"), ".claude", "settings.json
 PYTHON_EXE = f"{ROOT}/.venv/Scripts/python.exe"
 
 OUR_ARGS_LISTS = [
-    ["-m", "router.model_router.hook"],
-    ["-m", "router.skill_router.hook"],
+    ["-m", "src.model_router.hook"],
+    ["-m", "src.skill_router.hook"],
 ]
 HOOK_GROUPS = [
     ("UserPromptSubmit", "*", OUR_ARGS_LISTS, 10),
-    ("PostToolUse", "Skill|Agent|Task", [["-m", "router.tools.log_followed"]], 5),
+    ("PostToolUse", "Skill|Agent|Task", [["-m", "src.tools.log_followed"]], 5),
 ]
 
 
@@ -107,7 +107,7 @@ def remove(target: str):
 
 def main():
     if len(sys.argv) < 2 or sys.argv[1] not in ("add", "remove"):
-        print("Usage: python -m router.tools.manage_hooks add|remove [target_settings_json_path]")
+        print("Usage: python -m src.tools.manage_hooks add|remove [target_settings_json_path]")
         sys.exit(1)
 
     action = sys.argv[1]

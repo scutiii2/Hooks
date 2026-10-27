@@ -1,7 +1,7 @@
 """Try the skill picker on any request, anytime.
 
 Usage:
-    python -m router.skill_router.pick "your request text here"
+    python -m src.skill_router.pick "your request text here"
 """
 import sys
 
@@ -10,7 +10,7 @@ from . import picker
 
 def main():
     if len(sys.argv) < 2:
-        print('Usage: python -m router.skill_router.pick "your request text"')
+        print('Usage: python -m src.skill_router.pick "your request text"')
         sys.exit(1)
 
     request = " ".join(sys.argv[1:])

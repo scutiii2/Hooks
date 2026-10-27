@@ -1,12 +1,12 @@
 """Walk unreviewed real classifications and confirm/correct the gold label.
 
 Usage:
-    python -m router.tools.label_review model     # review model_router_log.jsonl
-    python -m router.tools.label_review skill      # review skill_router_log.jsonl
+    python -m src.tools.label_review model     # review model_router_log.jsonl
+    python -m src.tools.label_review skill      # review skill_router_log.jsonl
 
 For each entry: press Enter to accept the predicted label as correct, or
 type the correct label and press Enter to record a correction. Confirmed
-entries move to training_data/labeled.jsonl — the actual training set.
+entries move to data/training/labeled.jsonl — the actual training set.
 Ctrl+C at any point stops early; already-reviewed entries are remembered
 (by timestamp) so re-running only shows new ones.
 """
@@ -39,7 +39,7 @@ def _already_reviewed_timestamps(kind: str) -> set:
 
 def main():
     if len(sys.argv) != 2 or sys.argv[1] not in KIND_CONFIG:
-        print("Usage: python -m router.tools.label_review model|skill")
+        print("Usage: python -m src.tools.label_review model|skill")
         sys.exit(1)
 
     cfg = KIND_CONFIG[sys.argv[1]]

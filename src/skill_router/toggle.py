@@ -1,9 +1,9 @@
 """On/off switch and status check for the always-on skill picker.
 
 Usage:
-    python -m router.skill_router.toggle on
-    python -m router.skill_router.toggle off
-    python -m router.skill_router.toggle status
+    python -m src.skill_router.toggle on
+    python -m src.skill_router.toggle off
+    python -m src.skill_router.toggle status
 """
 import sys
 
@@ -13,14 +13,14 @@ from ..cli.toggle_cli import ToggleCLI
 
 
 class SkillRouterToggle(ToggleCLI):
-    usage = "Usage: python -m router.skill_router.toggle on|off|status"
+    usage = "Usage: python -m src.skill_router.toggle on|off|status"
 
     def on_message(self):
         name = provider._provider_name()
         via = "via LayaModel, falling back to Jev (TypeSafe API) if it is unreachable" \
             if name == "laya" else "via Jev (TypeSafe API)"
         return (f"Skill picker ON for every message. Requests now get classified {via}.\n"
-                "Turn OFF for anything private: python -m router.skill_router.toggle off")
+                "Turn OFF for anything private: python -m src.skill_router.toggle off")
 
     def off_message(self):
         return "Skill picker (always-on mode) OFF. Manual `pick.py` still works."

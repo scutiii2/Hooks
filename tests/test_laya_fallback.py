@@ -3,7 +3,7 @@ import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from router.core.classifiers import (
+from src.core.classifiers import (
     Classifier, ClassifierError, FallbackClassifier, LayaModelClassifier, SIZE_CRITERIA,
 )
 

@@ -7,7 +7,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 
 
 class SkillRouterState(JsonStore):
-    path = os.path.join(ROOT, "skill_router_state.json")
+    path = os.path.join(ROOT, "data", "state", "skill_router_state.json")
     defaults = {"enabled": False}
 
     def is_enabled(self) -> bool:
@@ -18,7 +18,7 @@ class SkillRouterState(JsonStore):
 
 
 class SkillRouterStats(JsonStore):
-    path = os.path.join(ROOT, "skill_router_stats.json")
+    path = os.path.join(ROOT, "data", "stats", "skill_router_stats.json")
     defaults = {"used": 0, "fallback": 0, "jev_failures": 0}
 
     def record(self, decision: str):

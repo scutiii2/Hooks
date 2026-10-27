@@ -1,10 +1,10 @@
-"""Convert training_data/labeled.jsonl into the {state, questions, gold}
+"""Convert data/training/labeled.jsonl into the {state, questions, gold}
 shape used by Laya's fine-tuning notebook:
 https://github.com/NandhaKishorM/laya/blob/main/notebooks/laya_finetune_typed_decisions_2xT4_kaggle.ipynb
 
 Usage:
-    python -m router.tools.export_training_data model  > model_router_train.jsonl
-    python -m router.tools.export_training_data skill   > skill_router_train.jsonl
+    python -m src.tools.export_training_data model  > model_router_train.jsonl
+    python -m src.tools.export_training_data skill   > skill_router_train.jsonl
 
 Only "kind" matching entries are exported; each labeled.jsonl row becomes
 one training case. Run this once you have enough labeled data to be worth
@@ -29,7 +29,7 @@ KIND_CONFIG = {
 
 def main():
     if len(sys.argv) != 2 or sys.argv[1] not in KIND_CONFIG:
-        print("Usage: python -m router.tools.export_training_data model|skill", file=sys.stderr)
+        print("Usage: python -m src.tools.export_training_data model|skill", file=sys.stderr)
         sys.exit(1)
 
     cfg = KIND_CONFIG[sys.argv[1]]

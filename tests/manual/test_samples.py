@@ -1,5 +1,5 @@
 """Run 10 sample messages through Jev directly and print a results table."""
-from ..core.classifiers import JevClassifier, ClassifierError
+from src.core.classifiers import JevClassifier, ClassifierError
 
 SAMPLES = [
     ("tiny?", "What's the capital of France?"),

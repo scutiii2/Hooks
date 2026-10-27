@@ -7,7 +7,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 
 
 class RouterState(JsonStore):
-    path = os.path.join(ROOT, "router_state.json")
+    path = os.path.join(ROOT, "data", "state", "router_state.json")
     defaults = {"enabled": False}
 
     def is_enabled(self) -> bool:
@@ -18,7 +18,7 @@ class RouterState(JsonStore):
 
 
 class RouterStats(JsonStore):
-    path = os.path.join(ROOT, "router_stats.json")
+    path = os.path.join(ROOT, "data", "stats", "router_stats.json")
     defaults = {
         "counts": {"tiny": 0, "everyday": 0, "large": 0, "hardest": 0},
         "handled_by_me": 0,

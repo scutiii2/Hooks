@@ -5,7 +5,7 @@ import os
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-TRAINING_DIR = os.path.join(ROOT, "training_data")
+TRAINING_DIR = os.path.join(ROOT, "data", "training")
 
 
 class JsonlLog:

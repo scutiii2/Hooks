@@ -1,7 +1,8 @@
 @echo off
 setlocal
 
-set PY=%~dp0.venv\Scripts\python.exe
+set PY=%~dp0..\.venv\Scripts\python.exe
+cd /d "%~dp0.."
 
 if "%~1"=="" goto menu
 if "%~1"=="add" goto run
@@ -21,11 +22,11 @@ set /p action="ADD or REMOVE: "
 set /p projdir="Directory (blank = user settings, everywhere): "
 
 if /i "%action%"=="add" (
-    if "%projdir%"=="" ( "%PY%" -m router.tools.manage_hooks add ) else ( "%PY%" -m router.tools.manage_hooks add "%projdir%\.claude\settings.json" )
+    if "%projdir%"=="" ( "%PY%" -m src.tools.manage_hooks add ) else ( "%PY%" -m src.tools.manage_hooks add "%projdir%\.claude\settings.json" )
     goto end
 )
 if /i "%action%"=="remove" (
-    if "%projdir%"=="" ( "%PY%" -m router.tools.manage_hooks remove ) else ( "%PY%" -m router.tools.manage_hooks remove "%projdir%\.claude\settings.json" )
+    if "%projdir%"=="" ( "%PY%" -m src.tools.manage_hooks remove ) else ( "%PY%" -m src.tools.manage_hooks remove "%projdir%\.claude\settings.json" )
     goto end
 )
 echo Invalid choice: must be ADD or REMOVE.
@@ -33,9 +34,9 @@ goto end
 
 :run
 if "%~2"=="" (
-    "%PY%" -m router.tools.manage_hooks %~1
+    "%PY%" -m src.tools.manage_hooks %~1
 ) else (
-    "%PY%" -m router.tools.manage_hooks %~1 "%~2\.claude\settings.json"
+    "%PY%" -m src.tools.manage_hooks %~1 "%~2\.claude\settings.json"
 )
 goto end
 

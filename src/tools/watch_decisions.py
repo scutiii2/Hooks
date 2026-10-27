@@ -1,7 +1,7 @@
 """Live view of the routers' decisions: tails the model and skill training logs and prints one line per
 classification, plus a line whenever the Laya server goes up or down.
 
-    python -m router.tools.watch_decisions [--last N]
+    python -m src.tools.watch_decisions [--last N]
 
 `dispatch` shows what CLAUDE.md tells Claude to do for a `use` decision.
 FOLLOW lines compare tool actions with the latest applicable suggestion in that session.
