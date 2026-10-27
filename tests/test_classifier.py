@@ -76,6 +76,41 @@ def test_config_precedence():
         assert config.get_confidence_threshold() == 60
 
 
+def test_skill_picker_runs_batches_in_parallel():
+    import threading
+    import time
+    from src.core.classifiers import ClassifierError
+    from src.skill_router import picker as picker_module
+    from src.skill_router.picker import SkillPicker
+
+    skills = [(f"s{i}", "d") for i in range(6)]
+    calls, lock = [], threading.Lock()
+
+    def fake(request, batch, timeout):
+        time.sleep(0.2)
+        with lock:
+            calls.append(len(batch))
+        return {"skill": batch[0][0], "confidence": 80, "provider": "jev"}
+
+    with patch.object(picker_module._provider, "pick_skill", side_effect=fake):
+        started = time.perf_counter()
+        result = SkillPicker(skills, batch_size=2).pick("x")
+        elapsed = time.perf_counter() - started
+    assert sorted(calls) == [2, 2, 2, 3]  # three batches, then the final round over the winners
+    assert result["skill"] == "s0"
+    assert elapsed < 0.55  # serial would be 0.8s
+
+    def boom(request, batch, timeout):
+        raise ClassifierError("down")
+
+    with patch.object(picker_module._provider, "pick_skill", side_effect=boom):
+        try:
+            SkillPicker(skills, batch_size=2).pick("x")
+        except ClassifierError:
+            return
+    raise AssertionError("batch error swallowed")
+
+
 if __name__ == "__main__":
     for name, test in list(globals().items()):
         if name.startswith("test_"):

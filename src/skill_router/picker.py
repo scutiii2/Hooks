@@ -2,6 +2,8 @@
 request. The classifier only ever names a skill (or "none") — it never
 runs or writes anything.
 """
+from concurrent.futures import ThreadPoolExecutor
+
 from ..core import provider as _provider
 from ..core import config as _config
 from .catalog import SKILLS
@@ -51,9 +53,14 @@ class SkillPicker:
         if len(self.skills) <= batch_size:
             return _provider.pick_skill(request, self.skills, timeout=timeout)
 
+        batches = self._batches(batch_size)
+        # Batches are independent, so run them side by side; map() keeps batch order and re-raises
+        # the first ProviderError.
+        with ThreadPoolExecutor(max_workers=len(batches)) as pool:
+            results = list(pool.map(lambda b: _provider.pick_skill(request, b, timeout=timeout), batches))
+
         winners = []
-        for batch in self._batches(batch_size):
-            result = _provider.pick_skill(request, batch, timeout=timeout)
+        for batch, result in zip(batches, results):
             if result["skill"] != "none":
                 desc = next((d for n, d in batch if n == result["skill"]), "")
                 winners.append((result["skill"], desc))
