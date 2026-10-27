@@ -239,6 +239,18 @@ def test_log_rotates_when_full():
         assert len(log.read_all()) == 1
 
 
+def test_calibrate_load_reads_rotated_backup():
+    import tempfile
+    from pathlib import Path
+    from src.tools import calibrate
+
+    with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
+        (Path(tmp) / "l.jsonl.1").write_text('{"n": 1}\n', encoding="utf-8")
+        (Path(tmp) / "l.jsonl").write_text('{"n": 2}\n', encoding="utf-8")
+        with patch.object(calibrate, "TRAINING_DIR", tmp):
+            assert [r["n"] for r in calibrate.load("l.jsonl", "X")] == [1, 2]
+
+
 def test_latency_percentiles():
     from src.tools.calibrate import percentile
 

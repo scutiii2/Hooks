@@ -19,11 +19,14 @@ JEV_ONLY_SINCE = 1793069483.11
 
 
 def load(filename: str, router: str) -> list[dict]:
-    path = os.path.join(TRAINING_DIR, filename)
-    if not os.path.exists(path):
-        return []
-    with open(path, encoding="utf-8") as f:
-        return [{**json.loads(line), "router": router} for line in f if line.strip()]
+    """Records of a log, including its rotated backup `<name>.1` (older records first)."""
+    records = []
+    for name in (filename + ".1", filename):
+        path = os.path.join(TRAINING_DIR, name)
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                records += [{**json.loads(line), "router": router} for line in f if line.strip()]
+    return records
 
 
 def report(router: str, decisions: list[dict], actions: list[dict], since: float):
