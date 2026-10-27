@@ -1,5 +1,5 @@
 """Live view of the routers' decisions: tails the model and skill training logs and prints one line per
-classification, plus a line whenever the Laya server goes up or down.
+classification.
 
     python -m src.tools.watch_decisions [--last N]
 
@@ -11,7 +11,6 @@ import os
 import shutil
 import sys
 import time
-import urllib.request
 from datetime import datetime
 
 from ..core import config
@@ -20,7 +19,6 @@ from ..core.training_log import TRAINING_DIR
 RESET, DIM, GREEN, YELLOW, CYAN, RED = "\033[0m", "\033[2m", "\033[32m", "\033[33m", "\033[36m", "\033[31m"
 DISPATCH = {"tiny": "router-haiku", "everyday": "router-haiku", "large": "router-sonnet", "hardest": "router-sonnet"}
 POLL_SECONDS = 0.3
-SERVER_CHECK_SECONDS = 3
 IGNORE_AFTER_SECONDS = 90
 
 
@@ -124,7 +122,7 @@ def format_ignored(record: dict, width: int) -> str:
     else:
         pick = record["predicted_skill"]
         target = f"Skill({pick})"
-    detail = f"{record['router']} {record.get('provider') or 'laya'} use {pick} -> {target}  no action in {IGNORE_AFTER_SECONDS}s"
+    detail = f"{record['router']} {record.get('provider') or 'jev'} use {pick} -> {target}  no action in {IGNORE_AFTER_SECONDS}s"
     head = f"{DIM}{when}{RESET}  {CYAN}IGNORE{RESET}  {RED}ignored?{RESET}  {detail}"
     visible = len(f"{when}  IGNORE  ignored?  {detail}")
     return with_prompt(head, record, width - visible - 4)
@@ -139,7 +137,7 @@ def format_record(record: dict, width: int, decisions: list[dict] = ()) -> str:
                 f"{record['tool']}({record['target']})")
     used = record["decision"] == "use"
     colour = GREEN if used else YELLOW
-    provider = record.get("provider") or "laya"  # records from before the Jev fallback carry no provider
+    provider = record.get("provider") or "jev"  # older records carry no provider
     threshold = config.get_confidence_threshold(provider)
     if record["router"] == "MODEL":
         pick = record["predicted_size"]
@@ -151,20 +149,6 @@ def format_record(record: dict, width: int, decisions: list[dict] = ()) -> str:
     head = f"{DIM}{when}{RESET}  {CYAN}{record['router']:<5}{RESET}  {provider:<4}  {colour}{record['decision']:<8}{RESET}  {pick:<24.24}  {record['confidence']:>3}%/{threshold}%  {action}"
     visible = len(f"{when}  {record['router']:<5}  {provider:<4}  {record['decision']:<8}  {pick:<24.24}  {record['confidence']:>3}%/{threshold}%  {action}")
     return with_prompt(head, record, width - visible - 4)
-
-
-def server_up() -> bool:
-    try:
-        urllib.request.urlopen(f"{config.get_laya_url().rstrip('/')}/health", timeout=1.0).close()
-        return True
-    except OSError:
-        return False
-
-
-def server_line(up: bool) -> str:
-    when = datetime.now().strftime("%H:%M:%S")
-    state = f"{GREEN}up{RESET}" if up else f"{RED}down{RESET}  {DIM}(classifying with Jev){RESET}"
-    return f"{DIM}{when}{RESET}  {CYAN}SERVER{RESET}  LayaModel {state}"
 
 
 def main(argv: list[str]) -> int:
@@ -180,17 +164,11 @@ def main(argv: list[str]) -> int:
     decisions = [r for records in initial for r in records if r["router"] != "FOLLOW"]
     backlog = sorted((r for records in initial for r in (records[-last:] if last > 0 else [])),
                      key=lambda r: r["timestamp"])
-    state, next_check = None, 0.0
     pending, follow_off_notice = PendingDecisions(), False
     try:
         while True:
             width = shutil.get_terminal_size((120, 20)).columns
             follow_enabled = os.path.exists(tails[2].path)
-            if time.time() >= next_check:
-                up, next_check = server_up(), time.time() + SERVER_CHECK_SECONDS
-                if up != state:
-                    print(server_line(up), flush=True)
-                    state = up
             fresh = sorted((r for t in tails for r in t.poll()), key=lambda r: r["timestamp"])
             decisions.extend(r for r in fresh if r["router"] != "FOLLOW")
             for record in backlog:

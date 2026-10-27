@@ -14,11 +14,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 CONFIG_PATH = os.path.join(ROOT, "router_config.json")
 
 DEFAULTS = {
-    "provider": "laya",
-    "confidence_threshold": {"jev": 60, "laya": 25},
+    "confidence_threshold": {"jev": 60},
     "skill_picker_batch_size": 20,
-    "laya_url": "http://127.0.0.1:9120",
-    "laya_strategy": "english-only",
 }
 
 
@@ -40,27 +37,12 @@ def _read_config() -> dict:
     return data
 
 
-def get_provider() -> str:
-    override = os.environ.get("PROVIDER", "").strip()
-    if override:
-        return override.lower()
-    return _read_config()["provider"].strip().lower()
-
-
-def get_confidence_threshold(provider_name: str) -> int:
+def get_confidence_threshold(provider_name: str = "jev") -> int:
     override = os.environ.get("CONFIDENCE_THRESHOLD", "").strip()
     if override:
         return int(override)
     thresholds = _read_config()["confidence_threshold"]
     return int(thresholds.get(provider_name, 60))
-
-
-def get_laya_url() -> str:
-    return os.environ.get("LAYA_URL", "").strip() or _read_config()["laya_url"]
-
-
-def get_laya_strategy() -> str:
-    return os.environ.get("LAYA_STRATEGY", "").strip() or _read_config()["laya_strategy"]
 
 
 def get_skill_picker_batch_size() -> int:

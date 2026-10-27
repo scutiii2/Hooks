@@ -8,7 +8,6 @@ Usage:
 import sys
 
 from . import state
-from ..core import provider
 from ..cli.toggle_cli import ToggleCLI
 
 
@@ -16,9 +15,7 @@ class ModelRouterToggle(ToggleCLI):
     usage = "Usage: python -m src.model_router.toggle on|off|status"
 
     def on_message(self):
-        name = provider._provider_name()
-        via = "via LayaModel, falling back to Jev (TypeSafe API) if it is unreachable" \
-            if name == "laya" else "via Jev (TypeSafe API)"
+        via = "via Jev (TypeSafe API)"
         return (f"Router ON. Messages now get classified {via}.\n"
                 "Turn OFF for anything private: python -m src.model_router.toggle off")
 

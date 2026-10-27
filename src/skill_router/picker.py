@@ -1,4 +1,4 @@
-"""Ask the active classifier (Jev or Laya) which skill should handle a
+"""Ask the classifier (Jev) which skill should handle a
 request. The classifier only ever names a skill (or "none") — it never
 runs or writes anything.
 """
@@ -15,7 +15,7 @@ class SkillPicker:
     locally-stronger competitor within its own batch and never reach the
     final round (verified against this catalog: "loop" lost its batch to
     "schedule" before ever facing "caveman:verify-and-stop"). Skipping
-    batching entirely removes that bug but made Laya noisier with 75
+    batching entirely removes that bug but made the classifier noisier with 75
     simultaneous options, producing a *confident* wrong pick instead of a
     low-confidence one — worse, since a low-confidence miss safely falls
     back. Default batch size is tuned for that trade-off; adjust
@@ -60,7 +60,7 @@ class SkillPicker:
 
         if not winners:
             return {"skill": "none", "confidence": 0,
-                     "provider": _provider._provider_name()}
+                     "provider": _provider.NAME}
 
         final = _provider.pick_skill(request, winners, timeout=timeout)
         return final
@@ -78,7 +78,7 @@ class SkillPicker:
             return {"decision": "fallback", "skill": None, "confidence": 0,
                     "provider": None, "error": str(e)}
 
-        threshold = self.threshold if self.threshold is not None else _provider.get_threshold(result["provider"])
+        threshold = self.threshold if self.threshold is not None else _provider.get_threshold()
         decision = "use" if (result["skill"] != "none"
                               and result["confidence"] >= threshold) else "fallback"
         return {"decision": decision, "skill": result["skill"],

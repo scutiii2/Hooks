@@ -1,6 +1,5 @@
 """Convert data/training/labeled.jsonl into the {state, questions, gold}
-shape used by Laya's fine-tuning notebook:
-https://github.com/NandhaKishorM/laya/blob/main/notebooks/laya_finetune_typed_decisions_2xT4_kaggle.ipynb
+shape used for typed-decision fine-tuning.
 
 Usage:
     python -m src.tools.export_training_data model  > model_router_train.jsonl
@@ -8,7 +7,7 @@ Usage:
 
 Only "kind" matching entries are exported; each labeled.jsonl row becomes
 one training case. Run this once you have enough labeled data to be worth
-fine-tuning on (the notebook itself was trained on ~1,200 cases).
+fine-tuning on (a few hundred cases at least).
 """
 import json
 import sys

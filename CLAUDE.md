@@ -5,9 +5,8 @@
 When a message arrives with injected context
 `[ROUTER size=<size> confidence=<N>% threshold=<T>% decision=<use|fallback>]`:
 
-- The hook already applied the threshold (it varies by provider — Jev vs
-  Laya — so don't re-derive it here). `decision=use` means confidence
-  cleared the bar for that provider.
+- The hook already applied the threshold (so don't re-derive it here).
+  `decision=use` means confidence cleared the bar.
 - `decision=use` → dispatch via the Agent tool:
   - `size` is `tiny` or `everyday` → `subagent_type: router-haiku`
   - `size` is `large` or `hardest` → `subagent_type: router-sonnet`

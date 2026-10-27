@@ -119,9 +119,9 @@ def test_decision_hooks_session_ids():
                 stack.enter_context(patch.object(log, "path", str(path)))
                 stack.enter_context(patch.object(provider, "get_threshold", return_value=25))
                 stack.enter_context(patch.object(provider, "classify_size", return_value={
-                    "size": "large", "confidence": 90, "provider": "laya"}))
+                    "size": "large", "confidence": 90, "provider": "jev"}))
                 stack.enter_context(patch.object(picker, "choose", return_value={
-                    "skill": "loop", "decision": "use", "confidence": 90, "provider": "laya", "error": None}))
+                    "skill": "loop", "decision": "use", "confidence": 90, "provider": "jev", "error": None}))
                 for extra in [{"session_id": "s1"}, {}]:
                     payload = {"prompt": "write a full report comparing database designs", **extra}
                     with patch("sys.stdin", io.StringIO(json.dumps(payload))), contextlib.redirect_stdout(io.StringIO()) as out:
@@ -229,11 +229,11 @@ def test_ignored_format():
                 "decision": "use", "predicted_size": "large", "input_text": "long prompt " * 30}
     line = format_ignored(decision, 120)
     assert RED + "ignored?" in line
-    assert "MODEL laya use large -> router-sonnet" in line
+    assert "MODEL jev use large -> router-sonnet" in line
     assert "no action in 90s" in line
     assert '..."' in line
     skill = {**decision, "router": "SKILL", "predicted_skill": "loop"}
-    assert "SKILL laya use loop -> Skill(loop)" in format_ignored(skill, 120)
+    assert "SKILL jev use loop -> Skill(loop)" in format_ignored(skill, 120)
 
 
 if __name__ == "__main__":

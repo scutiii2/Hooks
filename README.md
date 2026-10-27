@@ -5,7 +5,7 @@ Two opt-in routers for Claude Code, both **OFF by default**:
 - **Model router** — classifies each message by size (`tiny`/`everyday`/`large`/`hardest`) and, when confident enough, dispatches it to a Haiku- or Sonnet-pinned subagent instead of the main session model.
 - **Skill router** — classifies each message against your installed skill catalog and suggests the best-fitting skill, so I invoke it directly instead of guessing.
 
-Both use a pluggable classifier: **Laya** (the LayaModel service, free, Jev as fallback) or **Jev** (remote, paid, via TypeSafe's own API). Neither router ever blocks a message — any failure, timeout, or low confidence just falls back to normal behavior, as if the router wasn't there.
+Both classify with **Jev** (remote, paid, via TypeSafe's own API). Neither router ever blocks a message — any failure, timeout, or low confidence just falls back to normal behavior, as if the router wasn't there.
 
 ## How it works
 
@@ -21,13 +21,11 @@ Claude Code's `UserPromptSubmit` hook can't replace a response or pick a model o
 python -m venv .venv
 ```
 
-Copy your TypeSafe API key into `.env` if you want to use Jev instead of Laya:
+Copy `.env.example` to `.env` and add your TypeSafe API key:
 
 ```
 TYPESAFE_API_KEY=your-key-here
 ```
-
-Laya needs no API key — it downloads model weights (~1.6GB, one-time) to your machine on first use.
 
 ## Turning routers on/off
 
@@ -46,13 +44,7 @@ scripts\router_toggle.bat skill on|off|status
 
 Or hand-edit `data/state/router_state.json` / `data/state/skill_router_state.json` directly — `{"enabled": true|false}`.
 
-**Privacy note**: with `PROVIDER=laya` (the default), classification goes to your own LayaModel service; messages reach TypeSafe AI only when it is unreachable and Jev takes over. With `PROVIDER=jev`, every message you send while the router is ON is sent to TypeSafe AI (Jev's maker) over its API. Keep routers off, or switch to `laya`, for private work.
-
-## LayaModel (the Laya service)
-
-With `provider=laya` the hooks send each classification to LayaModel (`../LayaModel`, `POST /v1/ask`), which owns the model and often runs on another device. This project loads no Laya model. If LayaModel does not answer (device off, network down, error), the same call goes to Jev, and the decision is judged against Jev's threshold. Jev needs `TYPESAFE_API_KEY`; without it a Laya outage means no tag for that prompt.
-
-Set in `router_config.json` or `.env` (`.env` wins): `laya_url` / `LAYA_URL` (default `http://127.0.0.1:9120`), `laya_strategy` / `LAYA_STRATEGY` (default `english-only`, see the LayaModel README), and `LAYA_TOKEN` in `.env` (a project token made on the service's `/admin/` page; needed when the service has `LAYA_ADMIN_PASSWORD` set, and not the admin password itself). Laya gets half of the hook's timeout; Jev gets the rest. Check the service with `curl <laya_url>/health`; `watch_decisions` shows it as up/down.
+**Privacy note**: every message you send while a router is ON is sent to TypeSafe AI (Jev's maker) over its API. Keep the routers off for private work.
 
 ## Configuration
 
@@ -60,19 +52,17 @@ Set in `router_config.json` or `.env` (`.env` wins): `laya_url` / `LAYA_URL` (de
 
 ```json
 {
-  "provider": "laya",
-  "confidence_threshold": { "jev": 60, "laya": 25 },
+  "confidence_threshold": { "jev": 60 },
   "skill_picker_batch_size": 20
 }
 ```
 
 | Setting | What it does |
 |---|---|
-| `provider` | `"laya"` (LayaModel service, free; Jev fallback) or `"jev"` (Jev only, paid, needs a TypeSafe API key) |
-| `confidence_threshold` | Per-provider cutoff a classification must clear before it's trusted enough to act on (`decision=use`). Below it, the router's pick is ignored and things proceed normally. This is a safety gate, not an accuracy knob — raising it reduces wrong dispatches at the cost of also losing some correct ones. |
+| `confidence_threshold` | Cutoff a classification must clear before it's trusted enough to act on (`decision=use`). Below it, the router's pick is ignored and things proceed normally. This is a safety gate, not an accuracy knob — raising it reduces wrong dispatches at the cost of also losing some correct ones. |
 | `skill_picker_batch_size` | Skill catalogs larger than this get split into batches, each judged separately, with a final round among batch winners. Batching has a real trade-off (see `src/skill_router/picker.py` for the tested reasoning) — don't lower it casually. |
 
-Anything set in `.env` (`PROVIDER`, `CONFIDENCE_THRESHOLD`, `SKILL_PICKER_BATCH_SIZE`, `LAYA_URL`, `LAYA_STRATEGY`) overrides `router_config.json`, for quick one-off testing.
+Anything set in `.env` (`CONFIDENCE_THRESHOLD`, `SKILL_PICKER_BATCH_SIZE`) overrides `router_config.json`, for quick one-off testing.
 
 ## Model router details
 
@@ -85,13 +75,13 @@ Anything set in `.env` (`PROVIDER`, `CONFIDENCE_THRESHOLD`, `SKILL_PICKER_BATCH_
 
 - Confidence-tag format: `[SKILL_SUGGESTION skill=<name> confidence=<N>%]`
 - Catalog lives in `src/skill_router/catalog.py` — name + one-line purpose per skill. Keep it in sync by hand when skills are added/removed.
-- Jev/Laya only ever *names* a skill (or `"none"`) — never runs or writes anything.
+- Jev only ever *names* a skill (or `"none"`) — never runs or writes anything.
 - Manual, on-demand test (no toggle needed): `python -m src.skill_router.pick "your request text"`
 - Always-on hook mode has its own switch (`data/state/skill_router_state.json`), independent of the model router.
 
 ## Training data / fine-tuning path
 
-Laya's confidence scores are explicitly uncalibrated on this checkpoint, which limits how well a confidence threshold can work. A real fix is fine-tuning Laya on your own labeled examples, using [Laya's Kaggle notebook](https://github.com/NandhaKishorM/laya/blob/main/notebooks/laya_finetune_typed_decisions_2xT4_kaggle.ipynb) (free 2xT4 GPUs, ~5 min training once you have data). This repo includes the data-collection half of that pipeline:
+Every classification can be reviewed and turned into labeled data, for example to evaluate Jev's picks or to fine-tune a classifier of your own. This repo includes the data-collection half of that pipeline:
 
 1. **Logging** — while a router is ON, every real classification is appended locally to `data/training/model_router_log.jsonl` / `skill_router_log.jsonl`. Nothing is sent anywhere beyond the classifier call that already happens.
 2. **Review/correct** — `python -m src.tools.label_review model|skill` walks unreviewed entries one at a time: press Enter to accept the prediction, or type the correct label. Confirmed entries move to `data/training/labeled.jsonl`. Reruns only show new entries.
@@ -107,9 +97,9 @@ With the followed hook installed and `followed_log.jsonl` present, a live `use` 
 
 ```
 src/
-├── core/               # provider-agnostic: classifiers, config, provider switch, JSON storage base
-│   ├── classifiers.py  # Classifier ABC, JevClassifier, LayaModelClassifier, FallbackClassifier
-│   ├── provider.py     # picks a classifier per router_config.json / env
+├── core/               # classifiers, config, JSON storage base
+│   ├── classifiers.py  # Classifier ABC, JevClassifier
+│   ├── provider.py     # the classifier (Jev) and its threshold
 │   ├── config.py       # router_config.json loader with env-var overrides
 │   ├── json_store.py   # base class for on/off-switch and stats files
 │   └── training_log.py # append-only JSONL logging for fine-tuning data
@@ -129,6 +119,5 @@ router_config.json      # adjustable settings
 
 ## Known limitations
 
-- Laya's confidence isn't well-calibrated on this checkpoint (its own disclosed limitation) — treat raw picks as more trustworthy than the confidence number.
-- Skill-picker batching can eliminate a correct answer before the final round if a topically-similar skill in the same batch scores higher (verified case: `loop` lost to `schedule` before ever facing its actual competitor). Raising the batch size to avoid this made Laya *noisier* with more simultaneous options instead — a real trade-off, not a simple fix.
+- Skill-picker batching can eliminate a correct answer before the final round if a topically-similar skill in the same batch scores higher (verified case: `loop` lost to `schedule` before ever facing its actual competitor). Raising the batch size to avoid this made the classifier *noisier* with more simultaneous options instead — a real trade-off, not a simple fix.
 - Two near-duplicate skills in a catalog (e.g. two "schedule" skills) will confuse the picker regardless of tuning; worth consolidating if you hit this.
