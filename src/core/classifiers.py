@@ -6,6 +6,7 @@ each classifier implements once, reused by both call sites.
 """
 import json
 import os
+import time
 import urllib.request
 import urllib.error
 from abc import ABC, abstractmethod
@@ -58,6 +59,7 @@ class JevClassifier(Classifier):
     MODEL_ID = "jev-latest"
     KEY_ENV = "TYPESAFE_API_KEY"
     QUESTION_ID = "answer"
+    RETRY_DELAY = 0.5  # seconds before the single retry after HTTP 429
 
     def ask_choice(self, subject: str, criteria: dict, timeout: float) -> dict:
         api_key = os.environ.get(self.KEY_ENV, "").strip()
@@ -80,16 +82,21 @@ class JevClassifier(Classifier):
             method="POST",
         )
 
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                body = json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            detail = e.read().decode("utf-8", errors="replace")
-            raise ClassifierError(f"HTTP {e.code}: {detail}") from e
-        except urllib.error.URLError as e:
-            raise ClassifierError(f"request failed: {e}") from e
-        except (TimeoutError, ValueError) as e:
-            raise ClassifierError(f"timeout or bad JSON: {e}") from e
+        for attempt in range(2):
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    body = json.loads(resp.read().decode("utf-8"))
+                break
+            except urllib.error.HTTPError as e:
+                if e.code == 429 and attempt == 0:  # parallel skill batches can trip the rate limit
+                    time.sleep(self.RETRY_DELAY)
+                    continue
+                detail = e.read().decode("utf-8", errors="replace")
+                raise ClassifierError(f"HTTP {e.code}: {detail}") from e
+            except urllib.error.URLError as e:
+                raise ClassifierError(f"request failed: {e}") from e
+            except (TimeoutError, ValueError) as e:
+                raise ClassifierError(f"timeout or bad JSON: {e}") from e
 
         try:
             answer = body["answers"][self.QUESTION_ID]

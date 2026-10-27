@@ -130,6 +130,9 @@ def format_ignored(record: dict, width: int) -> str:
 
 def format_record(record: dict, width: int, decisions: list[dict] = ()) -> str:
     when = datetime.fromtimestamp(record["timestamp"]).strftime("%H:%M:%S")
+    if record["router"] == "FAIL":
+        return (f"{DIM}{when}{RESET}  {CYAN}FAIL{RESET}   {RED}{record['source']:<5} {record['error'][:70]}{RESET}"
+                f"  {record.get('elapsed_ms', '-')}ms")
     if record["router"] == "FOLLOW":
         followed = is_followed(record, decisions)
         colour, status = (GREEN, "followed") if followed else (YELLOW, "unprompted")
@@ -157,7 +160,7 @@ def main(argv: list[str]) -> int:
     os.system("")  # enables ANSI colours in the Windows console
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # prompts can hold characters the console code page lacks
     tails = [LogTail("model_router_log.jsonl", "MODEL"), LogTail("skill_router_log.jsonl", "SKILL"),
-             LogTail("followed_log.jsonl", "FOLLOW")]
+             LogTail("followed_log.jsonl", "FOLLOW"), LogTail("failures_log.jsonl", "FAIL")]
     print(f"Watching {TRAINING_DIR}  (Ctrl+C to stop)\n"
           f"{DIM}use = Claude is told to act on it, fallback = Claude answers normally{RESET}\n")
     # Seed matching with recent decisions even when --last hides them from display.

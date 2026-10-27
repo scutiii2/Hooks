@@ -19,7 +19,7 @@ def main():
 
         from . import state
         from . import picker
-        from ..core.training_log import skill_router_log
+        from ..core.training_log import failure_log, skill_router_log
 
         if not state.is_enabled():
             sys.exit(0)
@@ -35,6 +35,7 @@ def main():
 
         if result["error"]:
             state.record_failure()
+            failure_log.append({"source": "SKILL", "error": result["error"][:200], "elapsed_ms": elapsed_ms})
             sys.exit(0)
 
         state.record(result["decision"])

@@ -111,6 +111,46 @@ def test_skill_picker_runs_batches_in_parallel():
     raise AssertionError("batch error swallowed")
 
 
+def test_jev_retries_once_on_429():
+    from src.core.classifiers import JevClassifier
+
+    def too_many():
+        return urllib.error.HTTPError("u", 429, "slow down", {}, io.BytesIO(b"x"))
+
+    ok = io.BytesIO(json.dumps(_answer()).encode())
+    with patch.dict(os.environ, {"TYPESAFE_API_KEY": "k"}), patch.object(JevClassifier, "RETRY_DELAY", 0),             patch("urllib.request.urlopen", side_effect=[too_many(), ok]) as opened:
+        assert JevClassifier().ask_choice("m", CRITERIA, 1.0)["choice"] == "tiny"
+        assert opened.call_count == 2
+    with patch.dict(os.environ, {"TYPESAFE_API_KEY": "k"}), patch.object(JevClassifier, "RETRY_DELAY", 0),             patch("urllib.request.urlopen", side_effect=[too_many(), too_many()]) as opened:
+        assert _fails_with(opened) and opened.call_count == 2  # a second 429 is not retried again
+
+
+def _fails_with(_opened) -> bool:
+    from src.core.classifiers import ClassifierError, JevClassifier
+
+    try:
+        JevClassifier().ask_choice("m", CRITERIA, 1.0)
+    except ClassifierError:
+        return True
+    return False
+
+
+def test_hook_logs_failures():
+    import contextlib
+    import tempfile
+    from pathlib import Path
+    from src.core import provider, training_log
+    from src.model_router import hook, state
+
+    with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
+        path = Path(tmp) / "failures.jsonl"
+        payload = json.dumps({"session_id": "s", "prompt": "write a long detailed report please"})
+        with patch.object(training_log.failure_log, "path", str(path)),                 patch.object(state, "is_enabled", return_value=True),                 patch.object(state, "record_jev_failure"),                 patch.object(provider, "classify_size", side_effect=provider.ProviderError("HTTP 503: down")),                 patch("sys.stdin", io.StringIO(payload)), contextlib.suppress(SystemExit):
+            hook.main()
+        record = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
+    assert record["source"] == "MODEL" and record["error"] == "HTTP 503: down" and "elapsed_ms" in record
+
+
 if __name__ == "__main__":
     for name, test in list(globals().items()):
         if name.startswith("test_"):

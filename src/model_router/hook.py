@@ -34,7 +34,7 @@ def main():
 
         from . import state
         from ..core import provider
-        from ..core.training_log import model_router_log
+        from ..core.training_log import failure_log, model_router_log
 
         if not state.is_enabled():
             sys.exit(0)
@@ -46,8 +46,10 @@ def main():
         started = time.perf_counter()
         try:
             result = provider.classify_size(prompt, timeout=3.0)
-        except provider.ProviderError:
+        except provider.ProviderError as e:
             state.record_jev_failure()
+            failure_log.append({"source": "MODEL", "error": str(e)[:200],
+                                "elapsed_ms": round((time.perf_counter() - started) * 1000)})
             sys.exit(0)
         elapsed_ms = round((time.perf_counter() - started) * 1000)
 

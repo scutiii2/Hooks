@@ -33,4 +33,5 @@ class JsonlLog:
 model_router_log = JsonlLog("model_router_log.jsonl")
 skill_router_log = JsonlLog("skill_router_log.jsonl")
 followed_log = JsonlLog("followed_log.jsonl")
+failure_log = JsonlLog("failures_log.jsonl")
 labeled_log = JsonlLog("labeled.jsonl")
