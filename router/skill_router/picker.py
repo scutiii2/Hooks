@@ -78,7 +78,7 @@ class SkillPicker:
             return {"decision": "fallback", "skill": None, "confidence": 0,
                     "provider": None, "error": str(e)}
 
-        threshold = self.threshold if self.threshold is not None else _provider.get_threshold()
+        threshold = self.threshold if self.threshold is not None else _provider.get_threshold(result["provider"])
         decision = "use" if (result["skill"] != "none"
                               and result["confidence"] >= threshold) else "fallback"
         return {"decision": decision, "skill": result["skill"],

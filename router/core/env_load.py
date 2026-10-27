@@ -2,7 +2,7 @@
 import os
 
 def load_env():
-    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    here = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     env_path = os.path.join(here, ".env")
     if not os.path.exists(env_path):
         return

@@ -5,7 +5,7 @@ Two opt-in routers for Claude Code, both **OFF by default**:
 - **Model router** — classifies each message by size (`tiny`/`everyday`/`large`/`hardest`) and, when confident enough, dispatches it to a Haiku- or Sonnet-pinned subagent instead of the main session model.
 - **Skill router** — classifies each message against your installed skill catalog and suggests the best-fitting skill, so I invoke it directly instead of guessing.
 
-Both use a pluggable classifier: **Laya** (local, free, runs on your machine) or **Jev** (remote, paid, via TypeSafe's own API). Neither router ever blocks a message — any failure, timeout, or low confidence just falls back to normal behavior, as if the router wasn't there.
+Both use a pluggable classifier: **Laya** (the LayaModel service, free, Jev as fallback) or **Jev** (remote, paid, via TypeSafe's own API). Neither router ever blocks a message — any failure, timeout, or low confidence just falls back to normal behavior, as if the router wasn't there.
 
 ## How it works
 
@@ -19,7 +19,6 @@ Claude Code's `UserPromptSubmit` hook can't replace a response or pick a model o
 
 ```bash
 python -m venv .venv
-.venv\Scripts\pip install -r requirements.txt   # installs laya (local classifier)
 ```
 
 Copy your TypeSafe API key into `.env` if you want to use Jev instead of Laya:
@@ -47,20 +46,13 @@ router_toggle.bat skill on|off|status
 
 Or hand-edit `router_state.json` / `skill_router_state.json` directly — `{"enabled": true|false}`.
 
-**Privacy note**: with `PROVIDER=laya` (the default), classification runs entirely on your machine — nothing leaves it. With `PROVIDER=jev`, every message you send while the router is ON is sent to TypeSafe AI (Jev's maker) over its API. Keep routers off, or switch to `laya`, for private work.
+**Privacy note**: with `PROVIDER=laya` (the default), classification goes to your own LayaModel service; messages reach TypeSafe AI only when it is unreachable and Jev takes over. With `PROVIDER=jev`, every message you send while the router is ON is sent to TypeSafe AI (Jev's maker) over its API. Keep routers off, or switch to `laya`, for private work.
 
-## Laya server (why the first prompt is skipped)
+## LayaModel (the Laya service)
 
-Loading Laya takes ~35 s, far over a hook's timeout, so with `provider=laya` the hooks ask one resident background process (`router/core/laya_server.py`, loopback `127.0.0.1:8765` only, ~1.6 GB RAM) instead of loading the model themselves. If it is not running, the hook skips that prompt, starts it in the background, and prompts after it has loaded (~15-35 s) are routed. Output goes to `laya_server.log`.
+With `provider=laya` the hooks send each classification to LayaModel (`../LayaModel`, `POST /v1/ask`), which owns the model and often runs on another device. This project loads no Laya model. If LayaModel does not answer (device off, network down, error), the same call goes to Jev, and the decision is judged against Jev's threshold. Jev needs `TYPESAFE_API_KEY`; without it a Laya outage means no tag for that prompt.
 
-```bash
-python -m router.core.laya_server status   # running / not running
-python -m router.core.laya_server stop     # free the RAM
-```
-
-To start it at every login, run `laya_server.bat autostart-on` yourself (it creates a scheduled task; `autostart-off` removes it). Or use `laya_server.bat` with no arguments for a menu.
-
-Port: `laya_server_port` in `router_config.json` or `LAYA_SERVER_PORT` in `.env`. It stays up until you stop it or reboot.
+Set in `router_config.json` or `.env` (`.env` wins): `laya_url` / `LAYA_URL` (default `http://127.0.0.1:9120`), `laya_strategy` / `LAYA_STRATEGY` (default `english-only`, see the LayaModel README), and `LAYA_TOKEN` in `.env` if the service requires one. Laya gets half of the hook's timeout; Jev gets the rest. Check the service with `curl <laya_url>/health`; `watch_decisions` shows it as up/down.
 
 ## Configuration
 
@@ -76,11 +68,11 @@ Port: `laya_server_port` in `router_config.json` or `LAYA_SERVER_PORT` in `.env`
 
 | Setting | What it does |
 |---|---|
-| `provider` | `"laya"` (local, free) or `"jev"` (remote, paid, needs a TypeSafe API key) |
+| `provider` | `"laya"` (LayaModel service, free; Jev fallback) or `"jev"` (Jev only, paid, needs a TypeSafe API key) |
 | `confidence_threshold` | Per-provider cutoff a classification must clear before it's trusted enough to act on (`decision=use`). Below it, the router's pick is ignored and things proceed normally. This is a safety gate, not an accuracy knob — raising it reduces wrong dispatches at the cost of also losing some correct ones. |
 | `skill_picker_batch_size` | Skill catalogs larger than this get split into batches, each judged separately, with a final round among batch winners. Batching has a real trade-off (see `router/skill_router/picker.py` for the tested reasoning) — don't lower it casually. |
 
-Anything set in `.env` (`PROVIDER`, `CONFIDENCE_THRESHOLD`, `SKILL_PICKER_BATCH_SIZE`) overrides `router_config.json`, for quick one-off testing.
+Anything set in `.env` (`PROVIDER`, `CONFIDENCE_THRESHOLD`, `SKILL_PICKER_BATCH_SIZE`, `LAYA_URL`, `LAYA_STRATEGY`) overrides `router_config.json`, for quick one-off testing.
 
 ## Model router details
 
@@ -116,7 +108,7 @@ With the followed hook installed and `followed_log.jsonl` present, a live `use` 
 ```
 router/
 ├── core/               # provider-agnostic: classifiers, config, provider switch, JSON storage base
-│   ├── classifiers.py  # Classifier ABC, JevClassifier, LayaClassifier
+│   ├── classifiers.py  # Classifier ABC, JevClassifier, LayaModelClassifier, FallbackClassifier
 │   ├── provider.py     # picks a classifier per router_config.json / env
 │   ├── config.py       # router_config.json loader with env-var overrides
 │   ├── json_store.py   # base class for on/off-switch and stats files

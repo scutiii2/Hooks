@@ -15,7 +15,6 @@ import urllib.request
 from datetime import datetime
 
 from ..core import config
-from ..core.laya_server import HOST
 from ..core.training_log import TRAINING_DIR
 
 RESET, DIM, GREEN, YELLOW, CYAN, RED = "\033[0m", "\033[2m", "\033[32m", "\033[33m", "\033[36m", "\033[31m"
@@ -155,7 +154,7 @@ def format_record(record: dict, width: int, decisions: list[dict] = ()) -> str:
 
 def server_up() -> bool:
     try:
-        urllib.request.urlopen(f"http://{HOST}:{config.get_laya_server_port()}/health", timeout=0.5).close()
+        urllib.request.urlopen(f"{config.get_laya_url().rstrip('/')}/health", timeout=1.0).close()
         return True
     except OSError:
         return False
@@ -163,8 +162,8 @@ def server_up() -> bool:
 
 def server_line(up: bool) -> str:
     when = datetime.now().strftime("%H:%M:%S")
-    state = f"{GREEN}up{RESET}" if up else f"{RED}down{RESET}  {DIM}(the next prompt starts it; that prompt is skipped){RESET}"
-    return f"{DIM}{when}{RESET}  {CYAN}SERVER{RESET}  laya {state}"
+    state = f"{GREEN}up{RESET}" if up else f"{RED}down{RESET}  {DIM}(classifying with Jev){RESET}"
+    return f"{DIM}{when}{RESET}  {CYAN}SERVER{RESET}  LayaModel {state}"
 
 
 def main(argv: list[str]) -> int:

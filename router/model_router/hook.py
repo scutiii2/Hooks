@@ -50,7 +50,7 @@ def main():
 
         state.record_classification(result["size"])
 
-        threshold = provider.get_threshold()
+        threshold = provider.get_threshold(result["provider"])
         decision = "use" if result["confidence"] >= threshold else "fallback"
 
         model_router_log.append({

@@ -1,4 +1,4 @@
-"""Classifier interface plus Jev (remote) and Laya (local) implementations.
+"""Classifier interface plus Jev (TypeSafe API), LayaModel (HTTP service) and a Laya-then-Jev fallback.
 
 Both size-classification and skill-picking are "pick one option from a
 list, with a confidence score" — modeled here as one `ask_choice` method
@@ -6,10 +6,12 @@ each classifier implements once, reused by both call sites.
 """
 import json
 import os
+import time
 import urllib.request
 import urllib.error
 from abc import ABC, abstractmethod
 
+from . import config
 from .env_load import load_env
 
 load_env()
@@ -34,7 +36,8 @@ class Classifier(ABC):
     def ask_choice(self, subject: str, criteria: dict, timeout: float) -> dict:
         """criteria: {option_name: one_line_description}.
 
-        Returns {"choice": str, "confidence": int (0-100)}.
+        Returns {"choice": str, "confidence": int (0-100)}, plus "provider" when
+        the answerer is not fixed (see FallbackClassifier).
         Raises ClassifierError on any failure.
         """
 
@@ -42,13 +45,13 @@ class Classifier(ABC):
         result = self.ask_choice(message, SIZE_CRITERIA, timeout)
         if result["choice"] not in SIZES:
             raise ClassifierError(f"unknown size: {result['choice']!r}")
-        return {"size": result["choice"], "confidence": result["confidence"]}
+        return {"size": result["choice"], "confidence": result["confidence"], "provider": result.get("provider")}
 
     def pick_skill_batch(self, request: str, skills: list, timeout: float = 5.0) -> dict:
         criteria = {name: desc for name, desc in skills}
         criteria["none"] = "nothing here fits well"
         result = self.ask_choice(request, criteria, timeout)
-        return {"skill": result["choice"], "confidence": result["confidence"]}
+        return {"skill": result["choice"], "confidence": result["confidence"], "provider": result.get("provider")}
 
 
 class JevClassifier(Classifier):
@@ -105,44 +108,77 @@ class JevClassifier(Classifier):
         return {"choice": choice, "confidence": round(confidence * 100)}
 
 
-class LayaClassifier(Classifier):
-    """Local, free. https://github.com/NandhaKishorM/laya — pip install laya."""
+class LayaModelClassifier(Classifier):
+    """LayaModel (the shared Laya HTTP service, often on another device): POST /v1/ask, token in LAYA_TOKEN."""
 
-    MODEL_ID = "convaiinnovations/laya"  # English-only checkpoint, pinned to
-    # avoid Router() auto-downloading the multilingual model too.
+    QUESTION_ID = "choice"
 
-    def __init__(self):
-        self._agent = None
-
-    def _get_router(self):
-        if self._agent is None:
-            try:
-                import laya
-            except ImportError as e:
-                raise ClassifierError("laya not installed - pip install laya") from e
-            try:
-                self._agent = laya.load(self.MODEL_ID)
-            except Exception as e:
-                raise ClassifierError(f"failed to load Laya model: {e}") from e
-        return self._agent
+    def __init__(self, url: str | None = None, strategy: str | None = None):
+        self.url = (url or config.get_laya_url()).rstrip("/")
+        self.strategy = strategy or config.get_laya_strategy()
 
     def ask_choice(self, subject: str, criteria: dict, timeout: float) -> dict:
-        agent = self._get_router()
-        questions = {
-            "choice": {
+        payload = {
+            "strategy": self.strategy,
+            "text": subject,
+            "questions": {self.QUESTION_ID: {
                 "type": "choice",
                 "instructions": "Pick the single best-fitting option.",
                 "criteria": criteria,
-            }
+            }},
         }
-        try:
-            result = agent.predict({"input": subject}, questions)
-            answer = result["answers"]["choice"]
-            choice = answer["choice"]
-            confidence = int(round(answer["confidence"] * 100))
-        except ClassifierError:
-            raise
-        except Exception as e:
-            raise ClassifierError(f"predict failed or unexpected response shape: {e}") from e
+        headers = {"Content-Type": "application/json"}
+        token = os.environ.get("LAYA_TOKEN", "").strip()
+        if token:
+            headers["X-Internal-Token"] = token
+        req = urllib.request.Request(
+            f"{self.url}/v1/ask", data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST",
+        )
 
-        return {"choice": choice, "confidence": confidence}
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                body = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            raise ClassifierError(f"laya HTTP {e.code}: {e.read().decode('utf-8', errors='replace')}") from e
+        except urllib.error.URLError as e:
+            raise ClassifierError(f"laya unreachable at {self.url}: {e.reason}") from e
+        except (TimeoutError, OSError, ValueError) as e:
+            raise ClassifierError(f"laya timeout or bad JSON: {e}") from e
+
+        try:
+            answer = body["answers"][self.QUESTION_ID]
+            choice = answer["choice"]
+            confidence = answer["answer_confidence"]
+        except (KeyError, TypeError) as e:
+            raise ClassifierError(f"laya unexpected response shape: {e}") from e
+        if choice not in criteria:
+            raise ClassifierError(f"laya answered an option that was not offered: {choice!r}")
+        if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) or not 0 <= confidence <= 1:
+            raise ClassifierError(f"laya gave no usable confidence: {confidence!r}")
+
+        return {"choice": choice, "confidence": round(confidence * 100), "provider": "laya"}
+
+
+class FallbackClassifier(Classifier):
+    """Ask the primary; on ClassifierError ask the fallback with what is left of the timeout.
+
+    Answers carry the provider that gave them, so callers apply that provider's confidence threshold.
+    """
+
+    PRIMARY_SHARE = 0.5  # of the timeout; an unreachable primary must not eat the fallback's time
+
+    def __init__(self, primary: Classifier, primary_name: str, fallback: Classifier, fallback_name: str):
+        self.primary, self.primary_name = primary, primary_name
+        self.fallback, self.fallback_name = fallback, fallback_name
+        self._primary_down = False  # shortcut: per process (one hook run), so one skill-picker run tries it once
+
+    def ask_choice(self, subject: str, criteria: dict, timeout: float) -> dict:
+        start = time.monotonic()
+        if not self._primary_down:
+            try:
+                result = self.primary.ask_choice(subject, criteria, timeout * self.PRIMARY_SHARE)
+                return {**result, "provider": self.primary_name}
+            except ClassifierError:
+                self._primary_down = True
+        result = self.fallback.ask_choice(subject, criteria, max(timeout - (time.monotonic() - start), 0.5))
+        return {**result, "provider": self.fallback_name}

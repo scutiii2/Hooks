@@ -4,5 +4,7 @@
     "jev": 60,
     "laya": 25
   },
-  "skill_picker_batch_size": 20
+  "skill_picker_batch_size": 20,
+  "laya_url": "http://127.0.0.1:9120",
+  "laya_strategy": "english-only"
 }
