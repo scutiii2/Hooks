@@ -157,7 +157,13 @@ def test_privacy_filter():
     for text in ["fix my .env file", "the API key leaked", "my password is x", "rotate the ssh key",
                  "export OPENAI=sk-abcdef123456", "use the access token", "Secret handling"]:
         assert is_private(text), text
-    for text in ["count the tokens in this prompt", "sort a dict by key", "write the readme", "environment setup"]:
+    for text in ["token Zk3pQ9vLx2Rt7WmN4bYc8DfH1", "-----BEGIN RSA PRIVATE KEY-----", "ghp_16C7e42F292c6912E7710c838347Ae178B4a",
+                 "AKIAIOSFODNN7EXAMPLE", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abc"]:
+        assert is_private(text), text
+    for text in ["count the tokens in this prompt", "sort a dict by key", "write the readme", "environment setup",
+                 "commit 6329379c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f60", "see get_confidence_threshold_for_provider_name",
+                 "PromptSubmitHookAdditionalContextHandler", r"D:\User\Documents\Programming\Python\ClaudeRouters\src",
+                 "https://api.typesafe.ai/v1/systemone-request-handler-v2"]:
         assert not is_private(text), text
 
 
