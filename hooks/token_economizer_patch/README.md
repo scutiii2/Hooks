@@ -19,7 +19,7 @@ py te_patch.py update [claude|codex]   # remove patch, update from the marketpla
 py te_patch.py rebuild [claude|codex]  # uninstall, reinstall from the marketplace, apply patch
 ```
 
-`run.bat` is a two-stage menu over these: pick Claude or Codex, then Status, Update, Rebuild, Turn ON, Turn OFF, Run tests, Back.
+The CLI's `te_patch` command (also on the web Home page) runs these: pick Claude or Codex, then Status, Update, Rebuild, Turn ON, Turn OFF, Run tests, Back.
 
 ```
 py te_patch.py refresh              # rebuild patch from the Claude marketplace clone's git diff

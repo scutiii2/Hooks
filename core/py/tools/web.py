@@ -1,4 +1,4 @@
-"""Local web page. Home runs the run.bat commands; Logs shows .data/<hook>/*.jsonl, refreshed live.
+"""Local web page. Home runs the CLI commands; Logs shows .data/<hook>/*.jsonl, refreshed live.
 
     python -m core.py.tools.web [--port 8765]
 
@@ -12,6 +12,7 @@ import shlex
 import subprocess
 import sys
 import time
+import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -102,7 +103,7 @@ def list_commands() -> list[dict]:
 
 
 def run_command(name: str, args: str) -> dict | None:
-    """Run a run.bat command and return its output; None for a name that is not offered here."""
+    """Run a CLI command and return its output; None for a name that is not offered here."""
     if name not in COMMANDS or name in NOT_HERE:
         return None
     try:
@@ -182,7 +183,9 @@ def main(argv: list[str]) -> int:
     except OSError as e:
         print(f"Cannot listen on port {port}: {e}", file=sys.stderr)
         return 1
-    print(f"Hook logs at http://127.0.0.1:{port}/  (Ctrl+C to stop)")
+    url = f"http://127.0.0.1:{port}/"
+    print(f"Hook logs at {url}  (Ctrl+C to stop)")
+    webbrowser.open(url)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

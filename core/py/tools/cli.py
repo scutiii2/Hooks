@@ -1,9 +1,9 @@
-"""Pick a hook or tool by its short name; this is what run.bat starts.
+"""Pick a hook or tool by its short name. The web Home page runs the same names.
 
-    run.bat                          menu: pick a number, then type the arguments
-    run.bat list                     the short names
-    run.bat model_router status      same as: python -m hooks.model_router.toggle status
-    run.bat hooks.x.y arg            a full module path still works
+    python -m core.py.tools.cli                       menu: pick a number, then type the arguments
+    python -m core.py.tools.cli list                  the short names
+    python -m core.py.tools.cli model_router status   same as: python -m hooks.model_router.toggle status
+    python -m core.py.tools.cli hooks.x.y arg         a full module path still works
 """
 import subprocess
 import sys
@@ -63,7 +63,7 @@ def menu() -> list[str] | None:
 
 def main(argv: list[str]) -> int:
     if argv == ["list"] or argv == ["--help"]:
-        print("run.bat <name> [args]\n" + listing())
+        print("cli <name> [args]\n" + listing())
         return 0
     args = resolve(argv) if argv else menu()
     if args is None:

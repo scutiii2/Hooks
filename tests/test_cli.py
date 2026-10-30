@@ -1,4 +1,4 @@
-"""run.bat's short names resolve to the same commands the README used to spell out."""
+"""The CLI's short names resolve to the same commands the README used to spell out."""
 import importlib.util
 import os
 
