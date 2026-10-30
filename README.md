@@ -32,8 +32,8 @@ TYPESAFE_API_KEY=your-key-here
 Both default to **OFF**. Toggle with `run.bat`:
 
 ```bat
-run.bat hooks.model_router.toggle on|off|status
-run.bat hooks.skill_router.toggle on|off|status
+run.bat model_router on|off|status
+run.bat skill_router on|off|status
 ```
 
 Or hand-edit `.data/model_router/state.json` / `.data/skill_router/state.json` directly — `{"enabled": true|false}`.
@@ -63,7 +63,7 @@ These live in `hooks/model_router/config.json` and `hooks/skill_router/config.js
 - Confidence-tag format: `[ROUTER size=<size> confidence=<N>% threshold=<T>% decision=<use|fallback>]`
 - Size → subagent mapping (see `CLAUDE.md`): `tiny`/`everyday` → `router-haiku`, `large`/`hardest` → `router-sonnet` (`.claude/agents/router-haiku.md`, `.claude/agents/router-sonnet.md`).
 - Short, conversation-only replies (e.g. "yes do that but shorter") are filtered out by a regex heuristic before classification even runs — they're always handled by me directly.
-- Stats: `run.bat hooks.model_router.toggle status` shows counts by size and failures.
+- Stats: `run.bat model_router status` shows counts by size and failures.
 
 ## Skill router details
 
@@ -71,7 +71,7 @@ These live in `hooks/model_router/config.json` and `hooks/skill_router/config.js
 - The catalog is built on every hook run (`hooks/skill_router/catalog.py`) from the `SKILL.md` files of installed plugins and the `.claude/skills` of the current folder and its parents: name plus the first sentence of the description. Skills with `disable-model-invocation: true` are left out. `~/.claude/skills` is not scanned (here it only mirrors the remote `anthropic-skills:*`).
 - Skills with no usable file (Claude Code built-ins, remote `anthropic-skills:*`, a few plugin skills) are listed by hand in `hooks/skill_router/builtins.py`. A month after `VERIFIED`, the skill hook adds a `[BUILTIN_SKILLS_CHECK ...]` tag (at most once a day) asking Claude to compare that list with its own skill list, fix it and bump `VERIFIED`.
 - Jev only ever *names* a skill (or `"none"`) — never runs or writes anything.
-- Manual, on-demand test (no toggle needed): `run.bat hooks.skill_router.pick "your request text"`
+- Manual, on-demand test (no toggle needed): `run.bat skill_pick "your request text"`
 - Always-on hook mode has its own switch (`.data/skill_router/state.json`), independent of the model router.
 
 ## Training data / fine-tuning path
@@ -79,19 +79,19 @@ These live in `hooks/model_router/config.json` and `hooks/skill_router/config.js
 Every classification can be reviewed and turned into labeled data, for example to evaluate Jev's picks or to fine-tune a classifier of your own. This repo includes the data-collection half of that pipeline:
 
 1. **Logging** — while a router is ON, every real classification is appended locally to `.data/model_router/decisions.jsonl` / `.data/skill_router/decisions.jsonl`. Nothing is sent anywhere beyond the classifier call that already happens.
-2. **Review/correct** — `run.bat core.py.tools.label_review model|skill` walks unreviewed entries one at a time: press Enter to accept the prediction, or type the correct label. Confirmed entries move to `.memory/core/labeled.jsonl`. Reruns only show new entries.
-3. **Export** — `run.bat core.py.tools.export_training_data model|skill > out.jsonl` converts labeled data into the `{state, questions, gold}` shape the fine-tuning notebook expects.
+2. **Review/correct** — `run.bat label model|skill` walks unreviewed entries one at a time: press Enter to accept the prediction, or type the correct label. Confirmed entries move to `.memory/core/labeled.jsonl`. Reruns only show new entries.
+3. **Export** — `run.bat export model|skill > out.jsonl` converts labeled data into the `{state, questions, gold}` shape the fine-tuning notebook expects.
 
 `.data/` and `.memory/` are gitignored — they are your data. The notebook's own benchmark used ~1,200 labeled cases; that's a rough sizing reference, not a hard requirement.
 
-Both decision logs include `session_id`. The PostToolUse hook records only the session, tool, target skill/subagent, and timestamp in `.data/core/followed.jsonl`, without tool prompts. The watcher (`monitor.bat`) shows these actions as green `followed` when they match the latest applicable `use` decision in the same session within five minutes, or yellow `unprompted` otherwise. To install all three hooks, run `.venv\Scripts\python.exe -m core.py.tools.manage_hooks add` yourself; installation updates your Claude settings and must be performed by you.
+Both decision logs include `session_id`. The PostToolUse hook records only the session, tool, target skill/subagent, and timestamp in `.data/core/followed.jsonl`, without tool prompts. The watcher (`run.bat watch`) shows these actions as green `followed` when they match the latest applicable `use` decision in the same session within five minutes, or yellow `unprompted` otherwise. To install all three hooks, run `.venv\Scripts\python.exe -m core.py.tools.manage_hooks add` yourself; installation updates your Claude settings and must be performed by you.
 
 With the followed hook installed and `followed.jsonl` present, a live `use` decision with no matching action after 90 seconds prints a red `ignored?` hint once. The question mark matters: Claude may legitimately answer directly for a short reply that needs conversation context, and a skill suggestion is a hint, not a command.
 
 ## Web view of the logs
 
 ```bat
-run.bat core.py.tools.web
+web.bat                  # local web view of the hook logs, same as run.bat web
 ```
 
 Opens nothing by itself; browse to `http://127.0.0.1:8765/` (`--port N` changes it). One tab per log under `.data/` (`runs.jsonl`, `decisions.jsonl`, `failures.jsonl`, `followed.jsonl`), newest row first, refreshed every 2 seconds, with a text filter. Decision rows get the watcher's `followed` / `pending` / `ignored?` status. The server listens on 127.0.0.1 only and rejects other Host headers. Prompt text is hidden until you tick "show prompts". It is read-only.
@@ -107,7 +107,7 @@ core/                   # shared code, one folder per language; both write the s
 │   ├── training_log.py, runlog.py    # append-only JSONL logs (rotated at 10 MB); one runs.jsonl line per hook run
 │   ├── hook_io.py, privacy.py        # payload in, tag out, skip rules
 │   ├── toggle_cli.py, run_hook.py    # shared toggle CLI; runs a hook from any working folder
-│   └── tools/                        # manage_hooks, watch_decisions (monitor.bat), web (+ web.html), calibrate, label_review, export_training_data, log_followed
+│   └── tools/                        # manage_hooks, watch_decisions, web (+ web.html), calibrate, label_review, export_training_data, log_followed
 └── js/                 # for the Node hooks: paths.js, log.js, runlog.js (same data folders and log format as py; tests/test_js_core.py checks the log agrees)
 hooks/
 ├── model_router/       # size classifier: hook, state, toggle, config.json
@@ -117,8 +117,8 @@ hooks/
 ├── source_of_truth/    # keeps AGENTS.md as the single source for CLAUDE.md and skills
 └── token_economizer_patch/   # reapplies my patch on TokenEconomizer after updates
 tests/                  # offline tests (`python -m pytest tests`); tests/manual/ holds real-classifier scripts (run with python -m tests.manual.<name>). The last two hooks keep their tests beside them.
-run.bat                 # run.bat <module> [args]: toggles, manage_hooks, calibrate, ...
-monitor.bat             # live view of the routers' decisions
+run.bat                 # run.bat: menu of hooks and tools; run.bat <name> [args] runs one (run.bat list shows the names)
+web.bat                 # local web view of the hook logs (127.0.0.1)
 .claude/                # settings.json, agents/ (router-haiku.md, router-sonnet.md)
 CLAUDE.md, AGENTS.md    # agent instructions (CLAUDE.md adds the router protocols)
 .env.example            # copy to .env
