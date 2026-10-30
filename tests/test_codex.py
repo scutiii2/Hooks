@@ -24,7 +24,7 @@ def test_codex_install_is_idempotent_and_keeps_other_hooks(tmp_path, capsys):
     assert other in added["hooks"]["SessionStart"][0]["hooks"] and added["hooks"]["Stop"] == original["hooks"]["Stop"]
     assert sum("coding-rules-inject.js" in c for c in _commands(path, "SessionStart")) == 1
     assert any("hooks.skill_router.hook --host codex" in c for c in _commands(path, "UserPromptSubmit"))
-    assert all("model_router" not in c and "log_followed" not in c and "noise" not in c
+    assert all("log_followed" not in c and "noise" not in c
                for e in added["hooks"] for c in _commands(path, e))
     manage_hooks.add(str(path), "codex")
     assert json.loads(path.read_text()) == added

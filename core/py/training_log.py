@@ -40,7 +40,6 @@ class JsonlLog:
         return records
 
 
-model_router_log = JsonlLog(data_path("model_router", "decisions.jsonl"))
 skill_router_log = JsonlLog(data_path("skill_router", "decisions.jsonl"))
 followed_log = JsonlLog(data_path("core", "followed.jsonl"))
 failure_log = JsonlLog(data_path("core", "failures.jsonl"))

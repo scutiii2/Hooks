@@ -70,9 +70,8 @@ def add_status(records: list[dict], file: str):
     """Mark each `use` decision followed / pending / ignored? from the followed log, when it exists."""
     if not file.endswith("decisions.jsonl") or not os.path.exists(followed_log.path):
         return
-    router = "SKILL" if file.startswith("skill_router") else "MODEL"
-    used = [{**r, "router": router} for r in records if r.get("decision") == "use" and r.get("session_id")
-            and r.get("host") != "codex"]  # Codex has no Skill/Agent tool call to match
+    used = [{**r, "router": "SKILL"} for r in records if r.get("decision") == "use" and r.get("session_id")
+            and r.get("host") != "codex"]  # Codex has no Skill tool call to match
     pending, followed = list(used), set()
     for action in sorted(tail(followed_log.path, MAX_ROWS), key=lambda a: a["timestamp"]):
         match = matching_decision(action, pending)

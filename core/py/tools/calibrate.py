@@ -7,7 +7,7 @@ a higher threshold would drop mostly-ignored suggestions, not whether a lower on
 """
 import sys
 
-from ..training_log import JsonlLog, failure_log, followed_log, model_router_log, skill_router_log
+from ..training_log import JsonlLog, failure_log, followed_log, skill_router_log
 from .watch_decisions import matching_decision
 
 BUCKETS = [(60, 69), (70, 79), (80, 89), (90, 100)]
@@ -56,12 +56,10 @@ def latency(router: str, decisions: list[dict], failures: list[dict], since: flo
 def main(argv: list[str]):
     since = float(argv[argv.index("--since") + 1]) if "--since" in argv else JEV_ONLY_SINCE
     actions = load(followed_log.path, "FOLLOW")
-    model, skill = load(model_router_log.path, "MODEL"), load(skill_router_log.path, "SKILL")
+    skill = load(skill_router_log.path, "SKILL")
     failures = load(failure_log.path, "FAIL")
-    report("MODEL", model, actions, since)
     report("SKILL", skill, actions, since)
     print()
-    latency("MODEL", model, failures, since)
     latency("SKILL", skill, failures, since)
 
 

@@ -49,12 +49,11 @@ def _codex(*words: str, timeout: int, status: str = "") -> dict:
 # (event, matcher or None, handlers). Same JSON shape for both hosts: event -> [{matcher, hooks: [...]}].
 GROUPS = {
     "claude": [
-        ("UserPromptSubmit", "*", [_claude([RUN_HOOK, "hooks.model_router.hook"], 10),
-                                   _claude([RUN_HOOK, "hooks.skill_router.hook"], 10)]),
-        ("PostToolUse", "Skill|Agent|Task", [_claude([RUN_HOOK, "core.py.tools.log_followed"], 5)]),
+        ("UserPromptSubmit", "*", [_claude([RUN_HOOK, "hooks.skill_router.hook"], 10)]),
+        ("PostToolUse", "Skill", [_claude([RUN_HOOK, "core.py.tools.log_followed"], 5)]),
     ],
-    # Not on Codex: model_router (needs Claude's Agent tool and router-* subagents), log_followed (Codex has
-    # no Skill/Agent tool call to match), noise_filter (its rewrite needs a Codex-only permissionDecision and
+    # Not on Codex: log_followed (Codex has
+    # no Skill tool call to match), noise_filter (its rewrite needs a Codex-only permissionDecision and
     # a POSIX shell that Codex on Windows may not use).
     "codex": [
         ("SessionStart", None, [

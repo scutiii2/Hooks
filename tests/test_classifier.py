@@ -50,30 +50,16 @@ def test_jev_wraps_network_errors():
     assert _fails(error=urllib.error.HTTPError("u", 500, "boom", {}, io.BytesIO(b"x")))
 
 
-def test_classify_size_rejects_unknown_size():
-    from core.py.classifiers import Classifier, ClassifierError
-
-    class Fake(Classifier):
-        def ask_choice(self, subject, criteria, timeout):
-            return {"choice": "huge", "confidence": 90}
-
-    try:
-        Fake().classify_size("x")
-    except ClassifierError:
-        return
-    raise AssertionError("unknown size accepted")
-
-
 def test_config_precedence():
     from core.py import config
 
     with patch.dict(os.environ, {"CONFIDENCE_THRESHOLD": "42"}):
-        assert config.get_confidence_threshold("model_router") == 42
+        assert config.get_confidence_threshold("skill_router") == 42
     with patch.dict(os.environ, {"CONFIDENCE_THRESHOLD": ""}), \
             patch.object(config, "_read_config", return_value={"confidence_threshold": {"jev": 71}}):
-        assert config.get_confidence_threshold("model_router") == 71
+        assert config.get_confidence_threshold("skill_router") == 71
     with patch.dict(os.environ, {"CONFIDENCE_THRESHOLD": ""}), patch.object(config, "HOOKS", "missing"):
-        assert config.get_confidence_threshold("model_router") == 60
+        assert config.get_confidence_threshold("skill_router") == 60
 
 
 def test_skill_picker_runs_batches_in_parallel():
@@ -139,17 +125,21 @@ def test_hook_logs_failures():
     import contextlib
     import tempfile
     from pathlib import Path
-    from core.py import provider, training_log
-    from core.py.classifiers import ClassifierError
-    from hooks.model_router import hook, state
+    from core.py import training_log
+    from hooks.skill_router import hook, picker, state
 
     with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
         path = Path(tmp) / "failures.jsonl"
-        payload = json.dumps({"session_id": "s", "prompt": "write a long detailed report please"})
-        with patch.object(training_log.failure_log, "path", str(path)),                 patch.object(state, "is_enabled", return_value=True),                 patch.object(state, "record_jev_failure"),                 patch.object(provider, "classify_size", side_effect=ClassifierError("HTTP 503: down")),                 patch("sys.stdin", io.StringIO(payload)), contextlib.suppress(SystemExit):
+        payload = json.dumps({"session_id": "s", "prompt": "make a pdf out of these notes please"})
+        failed = {"skill": "none", "confidence": 0, "decision": "fallback", "provider": "jev", "error": "HTTP 503: down"}
+        with patch.object(training_log.failure_log, "path", str(path)), \
+                patch.object(state, "is_enabled", return_value=True), \
+                patch.object(state, "record_failure"), \
+                patch.object(picker, "choose", return_value=failed), \
+                patch("sys.stdin", io.StringIO(payload)), contextlib.suppress(SystemExit):
             hook.main()
         record = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
-    assert record["source"] == "MODEL" and record["error"] == "HTTP 503: down" and "elapsed_ms" in record
+    assert record["source"] == "SKILL" and record["error"] == "HTTP 503: down" and "elapsed_ms" in record
 
 
 def test_privacy_filter():
@@ -187,22 +177,6 @@ def _run_hook(hook, prompt, log, patches) -> str:
             hook.main()
         _run_hook.record = json.loads(path.read_text(encoding="utf-8").splitlines()[0]) if path.exists() else None
     return out.getvalue()
-
-
-def test_model_hook_injects_tag_and_logs():
-    from core.py import provider, training_log
-    from hooks.model_router import hook, state
-
-    result = {"size": "large", "confidence": 80, "provider": "jev"}
-    for threshold, decision in ((60, "use"), (90, "fallback")):
-        out = _run_hook(hook, "write a long detailed report please", training_log.model_router_log, [
-            patch.object(state, "is_enabled", return_value=True),
-            patch.object(state, "record_classification"),
-            patch.object(provider, "classify_size", return_value=result),
-            patch.object(provider, "get_threshold", return_value=threshold)])
-        tag = json.loads(out)["hookSpecificOutput"]["additionalContext"]
-        assert tag == f"[ROUTER size=large confidence=80% threshold={threshold}% decision={decision}]"
-        assert _run_hook.record["decision"] == decision and "elapsed_ms" in _run_hook.record
 
 
 def test_skill_hook_injects_tag_skips_and_counts():
@@ -333,8 +307,8 @@ def test_watcher_formats_latency_and_failures():
     from core.py.tools.watch_decisions import format_record
 
     base = {"timestamp": 1.0, "input_text": "hello", "confidence": 80, "decision": "use", "provider": "jev"}
-    timed = format_record({**base, "router": "MODEL", "predicted_size": "large", "elapsed_ms": 412}, 200)
-    assert "412ms" in timed and "router-sonnet" in timed
+    timed = format_record({**base, "router": "SKILL", "predicted_skill": "pdf", "elapsed_ms": 412}, 200)
+    assert "412ms" in timed and "Skill(pdf)" in timed
     assert "-" in format_record({**base, "router": "SKILL", "predicted_skill": "pdf"}, 200)  # older record, no timing
     failed = format_record({"timestamp": 1.0, "router": "FAIL", "source": "SKILL", "error": "HTTP 503", "elapsed_ms": 9}, 200)
     assert "SKILL" in failed and "HTTP 503" in failed and "9ms" in failed

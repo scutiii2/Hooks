@@ -1,7 +1,6 @@
 """Walk unreviewed real classifications and confirm/correct the gold label.
 
 Usage:
-    python -m core.py.tools.label_review model     # review model_router_log.jsonl
     python -m core.py.tools.label_review skill      # review skill_router_log.jsonl
 
 For each entry: press Enter to accept the predicted label as correct, or
@@ -12,16 +11,9 @@ Ctrl+C at any point stops early; already-reviewed entries are remembered
 """
 import sys
 
-from ..training_log import model_router_log, skill_router_log, labeled_log
+from ..training_log import skill_router_log, labeled_log
 
 KIND_CONFIG = {
-    "model": {
-        "log": model_router_log,
-        "kind": "model_router",
-        "predicted_field": "predicted_size",
-        "gold_field": "size",
-        "prompt_label": "size (tiny/everyday/large/hardest)",
-    },
     "skill": {
         "log": skill_router_log,
         "kind": "skill_router",
@@ -39,7 +31,7 @@ def _already_reviewed_timestamps(kind: str) -> set:
 
 def main():
     if len(sys.argv) != 2 or sys.argv[1] not in KIND_CONFIG:
-        print("Usage: python -m core.py.tools.label_review model|skill")
+        print("Usage: python -m core.py.tools.label_review skill")
         sys.exit(1)
 
     cfg = KIND_CONFIG[sys.argv[1]]

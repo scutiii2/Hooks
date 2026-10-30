@@ -1,8 +1,7 @@
 """Classifier interface plus the Jev implementation.
 
-Both size-classification and skill-picking are "pick one option from a
-list, with a confidence score" - modeled here as one `ask_choice` method
-each classifier implements once, reused by both call sites.
+Skill-picking is "pick one option from a list, with a confidence score" - modeled
+here as one `ask_choice` method each classifier implements once.
 """
 import json
 import os
@@ -10,14 +9,6 @@ import time
 import urllib.request
 import urllib.error
 from abc import ABC, abstractmethod
-
-
-SIZE_CRITERIA = {
-    "tiny": "a lookup, a rename, a one-line answer",
-    "everyday": "a normal email, post, or short document",
-    "large": "a multi-step build, research, a full report",
-    "hardest": "strategy, or anything where a wrong call is expensive",
-}
 
 
 def choice_question(criteria: dict) -> dict:
@@ -44,12 +35,6 @@ class Classifier(ABC):
         Returns {"choice": str, "confidence": int (0-100)}.
         Raises ClassifierError on any failure.
         """
-
-    def classify_size(self, message: str, timeout: float = 3.0) -> dict:
-        result = self.ask_choice(message, SIZE_CRITERIA, timeout)
-        if result["choice"] not in SIZE_CRITERIA:
-            raise ClassifierError(f"unknown size: {result['choice']!r}")
-        return {"size": result["choice"], "confidence": result["confidence"]}
 
     def pick_skill_batch(self, request: str, skills: list, timeout: float = 5.0) -> dict:
         result = self.ask_choice(request, skill_criteria(skills), timeout)

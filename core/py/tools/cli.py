@@ -2,7 +2,7 @@
 
     python -m core.py.tools.cli                       menu: pick a number, then type the arguments
     python -m core.py.tools.cli list                  the short names
-    python -m core.py.tools.cli model_router status   same as: python -m hooks.model_router.toggle status
+    python -m core.py.tools.cli skill_router status   same as: python -m hooks.skill_router.toggle status
     python -m core.py.tools.cli hooks.x.y arg         a full module path still works
 """
 import subprocess
@@ -12,7 +12,6 @@ from ..paths import ROOT
 
 # name: (python arguments, usage shown after the name, one-line purpose)
 COMMANDS = {
-    "model_router": (["-m", "hooks.model_router.toggle"], "on|off|status", "model router switch and stats"),
     "skill_router": (["-m", "hooks.skill_router.toggle"], "on|off|status", "skill router switch and stats"),
     "skill_pick": (["-m", "hooks.skill_router.pick"], '"request text"', "ask the skill router once, no toggle needed"),
     "te_patch": (["hooks/token_economizer_patch/te_patch.py"], "status|apply|ensure|on|off|update|rebuild|refresh",
@@ -22,8 +21,8 @@ COMMANDS = {
     "web": (["-m", "core.py.tools.web"], "[--port 8765]", "web view of the logs"),
     "watch": (["-m", "core.py.tools.watch_decisions"], "[--last N]", "live decisions in the terminal"),
     "calibrate": (["-m", "core.py.tools.calibrate"], "[--since EPOCH]", "follow rate per confidence bucket"),
-    "label": (["-m", "core.py.tools.label_review"], "model|skill", "review and correct logged predictions"),
-    "export": (["-m", "core.py.tools.export_training_data"], "model|skill", "labeled data to training JSONL"),
+    "label": (["-m", "core.py.tools.label_review"], "skill", "review and correct logged predictions"),
+    "export": (["-m", "core.py.tools.export_training_data"], "skill", "labeled data to training JSONL"),
     "settings": (["-m", "core.py.tools.manage_hooks"], "add|remove [--host claude|codex] [file]", "install or remove hooks in Claude settings or Codex hooks.json"),
 }
 

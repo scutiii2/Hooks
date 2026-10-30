@@ -8,12 +8,12 @@ from core.py.tools import cli
 
 
 def test_short_names_and_module_paths():
-    assert cli.resolve(["model_router", "status"]) == ["-m", "hooks.model_router.toggle", "status"]
+    assert cli.resolve(["skill_router", "status"]) == ["-m", "hooks.skill_router.toggle", "status"]
     assert cli.resolve(["web", "--port", "9"]) == ["-m", "core.py.tools.web", "--port", "9"]
     assert cli.resolve(["hooks.skill_router.pick", "x y"]) == ["-m", "hooks.skill_router.pick", "x y"]
     assert cli.resolve([]) is None
-    with pytest.raises(SystemExit, match="Unknown name 'modle_router'"):
-        cli.resolve(["modle_router", "status"])
+    with pytest.raises(SystemExit, match="Unknown name 'skil_router'"):
+        cli.resolve(["skil_router", "status"])
 
 
 @pytest.mark.parametrize("name", list(cli.COMMANDS))
@@ -30,4 +30,4 @@ def test_menu_quits_on_blank_and_runs_choice(monkeypatch):
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
     assert cli.menu() is None
     answers = iter(["1", "status"])
-    assert cli.menu() == ["-m", "hooks.model_router.toggle", "status"]
+    assert cli.menu() == ["-m", "hooks.skill_router.toggle", "status"]

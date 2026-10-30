@@ -26,8 +26,7 @@ def test_log_run_never_raises():
         runlog.log_run("h", {"outcome": "ok"}, time.time())
 
 
-@pytest.mark.parametrize("module,hook", [("hooks.model_router.hook", "model_router"),
-                                         ("hooks.skill_router.hook", "skill_router")])
+@pytest.mark.parametrize("module,hook", [("hooks.skill_router.hook", "skill_router")])
 def test_router_hooks_log_error_on_bad_stdin(runs_dir, module, hook):
     import importlib
     with patch("sys.stdin", io.StringIO("not json")), patch("sys.stdout", io.StringIO()):
@@ -36,23 +35,6 @@ def test_router_hooks_log_error_on_bad_stdin(runs_dir, module, hook):
     assert e.value.code == 0
     (record,) = _records(runs_dir, hook)
     assert record["event"] == "UserPromptSubmit" and record["outcome"] in ("error", "skipped", "disabled")
-
-
-def test_router_hook_logs_decision(runs_dir):
-    from core.py import provider
-    from hooks.model_router import hook, state
-
-    payload = json.dumps({"session_id": "s", "prompt": "write a long detailed report please"})
-    with patch.object(state, "is_enabled", return_value=True), patch.object(state, "record_classification"), \
-            patch.object(provider, "classify_size", return_value={"size": "large", "confidence": 80, "provider": "jev"}), \
-            patch.object(provider, "get_threshold", return_value=60), \
-            patch("core.py.training_log.model_router_log.append"), \
-            patch("sys.stdin", io.StringIO(payload)), patch("sys.stdout", io.StringIO()):
-        with pytest.raises(SystemExit):
-            hook.main()
-    (record,) = _records(runs_dir, "model_router")
-    assert (record["outcome"], record["size"], record["confidence"]) == ("use", "large", 80)
-    assert "input_text" not in record and "prompt" not in record
 
 
 def test_source_of_truth_logs_run(runs_dir, tmp_path):

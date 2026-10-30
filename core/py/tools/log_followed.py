@@ -1,4 +1,4 @@
-"""PostToolUse hook: log only the invoked skill or subagent, never its prompt."""
+"""PostToolUse hook: log only the invoked skill, never its arguments."""
 import json
 import sys
 
@@ -7,10 +7,9 @@ def main():
     try:
         payload = json.load(sys.stdin)
         tool = payload.get("tool_name")
-        field = {"Skill": "skill", "Agent": "subagent_type", "Task": "subagent_type"}.get(tool)
-        if field is None:
+        if tool != "Skill":
             return
-        target = payload.get("tool_input", {}).get(field)
+        target = payload.get("tool_input", {}).get("skill")
         if not isinstance(target, str) or not target.strip():
             return
         from ..training_log import followed_log

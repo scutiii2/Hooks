@@ -1,9 +1,8 @@
-"""Live view of the routers' decisions: tails the model and skill training logs and prints one line per
+"""Live view of the skill router's decisions: tails the skill training log and prints one line per
 classification.
 
     python -m core.py.tools.watch_decisions [--last N]
 
-`dispatch` shows what CLAUDE.md tells Claude to do for a `use` decision.
 FOLLOW lines compare tool actions with the latest applicable suggestion in that session.
 """
 import json
@@ -16,10 +15,9 @@ from datetime import datetime
 
 from .. import config
 from ..paths import DATA
-from ..training_log import failure_log, followed_log, model_router_log, skill_router_log
+from ..training_log import failure_log, followed_log, skill_router_log
 
 RESET, DIM, GREEN, YELLOW, CYAN, RED = "\033[0m", "\033[2m", "\033[32m", "\033[33m", "\033[36m", "\033[31m"
-DISPATCH = {"tiny": "router-haiku", "everyday": "router-haiku", "large": "router-sonnet", "hardest": "router-sonnet"}
 ANSI = re.compile(r"\033\[[0-9;]*m")
 POLL_SECONDS = 0.3
 IGNORE_AFTER_SECONDS = 90
@@ -60,17 +58,16 @@ def matching_decision(action: dict, decisions: list[dict]) -> dict | None:
     if not session:
         return None
     tool = action.get("tool")
-    if tool not in ("Skill", "Agent", "Task"):
+    if tool != "Skill":
         return None
-    router = "SKILL" if tool == "Skill" else "MODEL"
     candidates = [r for r in decisions
-                  if r.get("router") == router and r.get("decision") == "use"
+                  if r.get("router") == "SKILL" and r.get("decision") == "use"
                   and r.get("session_id") == session
                   and 0 <= action["timestamp"] - r["timestamp"] <= 300]
     # The oldest suggestion this action satisfies: one action settles one decision, so a newer unrelated
     # suggestion cannot hide it and make it expire as "ignored?".
     matches = [r for r in candidates
-               if action.get("target") == (r.get("predicted_skill") if tool == "Skill" else DISPATCH.get(r.get("predicted_size")))]
+               if action.get("target") == r.get("predicted_skill")]
     return min(matches, key=lambda r: r["timestamp"]) if matches else None
 
 
@@ -86,7 +83,7 @@ class PendingDecisions:
         self.decisions = []
 
     def add(self, decision: dict):
-        # Codex has no Skill/Agent tool call to follow, so its suggestions can never be matched.
+        # Codex has no Skill tool call to follow, so its suggestions can never be matched.
         if decision.get("session_id") and decision.get("decision") == "use" and decision.get("host") != "codex":
             self.decisions.append(decision)
 
@@ -113,13 +110,8 @@ def with_prompt(head: str, record: dict, width: int) -> str:
 
 def format_ignored(record: dict, width: int) -> str:
     when = datetime.now().strftime("%H:%M:%S")
-    if record["router"] == "MODEL":
-        pick = record["predicted_size"]
-        target = DISPATCH.get(pick, "?")
-    else:
-        pick = record["predicted_skill"]
-        target = f"Skill({pick})"
-    detail = f"{record['router']} {record.get('provider') or 'jev'} use {pick} -> {target}  no action in {IGNORE_AFTER_SECONDS}s"
+    pick = record["predicted_skill"]
+    detail = f"{record['router']} {record.get('provider') or 'jev'} use {pick} -> Skill({pick})  no action in {IGNORE_AFTER_SECONDS}s"
     head = f"{DIM}{when}{RESET}  {CYAN}IGNORE{RESET}  {RED}ignored?{RESET}  {detail}"
     return with_prompt(head, record, width)
 
@@ -137,14 +129,9 @@ def format_record(record: dict, width: int, decisions: list[dict] = ()) -> str:
     used = record["decision"] == "use"
     colour = GREEN if used else YELLOW
     provider = record.get("provider") or "jev"  # older records carry no provider
-    threshold = config.get_confidence_threshold("model_router" if record["router"] == "MODEL" else "skill_router", provider)
-    if record["router"] == "MODEL":
-        pick = record["predicted_size"]
-        threshold = record.get("threshold", threshold)
-        action = f"-> {DISPATCH.get(pick, '?')}" if used else "answer normally"
-    else:
-        pick = record["predicted_skill"]
-        action = f"-> Skill({pick})" if used else "no suggestion"
+    threshold = config.get_confidence_threshold("skill_router", provider)
+    pick = record["predicted_skill"]
+    action = f"-> Skill({pick})" if used else "no suggestion"
     elapsed = f"{record['elapsed_ms']}ms" if "elapsed_ms" in record else "-"  # older records carry no timing
     head = f"{DIM}{when}{RESET}  {CYAN}{record['router']:<5}{RESET}  {provider:<4}  {colour}{record['decision']:<8}{RESET}  {pick:<24.24}  {record['confidence']:>3}%/{threshold}%  {elapsed:>6}  {action}"
     return with_prompt(head, record, width)
@@ -154,7 +141,7 @@ def main(argv: list[str]) -> int:
     last = int(argv[argv.index("--last") + 1]) if "--last" in argv else 5
     os.system("")  # enables ANSI colours in the Windows console
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # prompts can hold characters the console code page lacks
-    tails = [LogTail(model_router_log.path, "MODEL"), LogTail(skill_router_log.path, "SKILL"),
+    tails = [LogTail(skill_router_log.path, "SKILL"),
              LogTail(followed_log.path, "FOLLOW"), LogTail(failure_log.path, "FAIL")]
     print(f"Watching {DATA}  (Ctrl+C to stop)\n"
           f"{DIM}use = Claude is told to act on it, fallback = Claude answers normally{RESET}\n")
@@ -167,7 +154,7 @@ def main(argv: list[str]) -> int:
     try:
         while True:
             width = shutil.get_terminal_size((120, 20)).columns
-            follow_enabled = os.path.exists(tails[2].path)
+            follow_enabled = os.path.exists(tails[1].path)
             fresh = sorted((r for t in tails for r in t.poll()), key=lambda r: r["timestamp"])
             decisions.extend(r for r in fresh if r["router"] != "FOLLOW")
             for record in backlog:

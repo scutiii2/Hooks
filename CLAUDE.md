@@ -1,23 +1,5 @@
 @AGENTS.md
 
-# Model router protocol
-
-When a message arrives with injected context
-`[ROUTER size=<size> confidence=<N>% threshold=<T>% decision=<use|fallback>]`:
-
-- The hook already applied the threshold (so don't re-derive it here).
-  `decision=use` means confidence cleared the bar.
-- `decision=use` → dispatch via the Agent tool:
-  - `size` is `tiny` or `everyday` → `subagent_type: router-haiku`
-  - `size` is `large` or `hardest` → `subagent_type: router-sonnet`
-  - Pass the user's original message as the agent prompt, verbatim.
-  - Relay the subagent's reply back as your response, unchanged.
-- `decision=fallback`, or no tag is present, or the message is a short
-  reply that only makes sense inside the current conversation: answer
-  normally yourself, no dispatch.
-- Never block or delay on this. If dispatch fails for any reason, answer
-  normally yourself.
-
 # Skill router protocol
 
 When a message arrives with injected context `[SKILL_SUGGESTION skill=<name> confidence=<N>%]`:

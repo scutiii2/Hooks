@@ -26,7 +26,7 @@ def test_picker_threshold_and_none():
             assert p.choose("x")["decision"] == want
 
 
-@pytest.mark.parametrize("module", ["hooks.model_router.hook", "hooks.skill_router.hook"])
+@pytest.mark.parametrize("module", ["hooks.skill_router.hook"])
 def test_hooks_fail_open_on_bad_stdin(module):
     import importlib
     hook = importlib.import_module(module)
@@ -56,7 +56,7 @@ def test_manage_hooks_add_remove_roundtrip(tmp_path):
     manage_hooks.add(target)  # idempotent
     import json
     hooks = json.load(open(target))["hooks"]
-    assert len(hooks["UserPromptSubmit"][0]["hooks"]) == 2
+    assert len(hooks["UserPromptSubmit"][0]["hooks"]) == 1
     assert hooks["UserPromptSubmit"][0]["hooks"][0]["command"] == manage_hooks.PYTHON_EXE
     manage_hooks.remove(target)
     assert "hooks" not in json.load(open(target))
