@@ -9,4 +9,4 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pytest
-      - run: python -m pytest -q tests
+      - run: python -m pytest -q tests hooks/token_economizer_patch/test_te_patch.py

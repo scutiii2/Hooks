@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 
 def test_followed_payloads():
-    from src.core import training_log
-    from src.tools import log_followed
+    from core.py import training_log
+    from core.py.tools import log_followed
 
     with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
         path = Path(tmp) / "followed.jsonl"
@@ -41,7 +41,7 @@ def test_followed_payloads():
 
 
 def test_manage_hooks_idempotence():
-    from src.tools import manage_hooks
+    from core.py.tools import manage_hooks
 
     other = {"type": "command", "command": "other", "args": []}
     original = {"keep": True, "hooks": {
@@ -57,7 +57,7 @@ def test_manage_hooks_idempotence():
         added = json.loads(path.read_text())
         follow = added["hooks"]["PostToolUse"][0]["hooks"]
         assert follow == [other, {"type": "command", "command": manage_hooks.PYTHON_EXE,
-                                  "args": ["-m", "src.tools.log_followed"], "timeout": 5}]
+                                  "args": [manage_hooks.RUN_HOOK, "core.py.tools.log_followed"], "timeout": 5}]
         assert len(added["hooks"]["UserPromptSubmit"][0]["hooks"]) == 3
         manage_hooks.add(str(path))
         assert json.loads(path.read_text()) == added
@@ -72,7 +72,7 @@ def test_manage_hooks_idempotence():
 
 
 def test_follow_matching():
-    from src.tools.watch_decisions import is_followed, format_record, GREEN, YELLOW
+    from core.py.tools.watch_decisions import is_followed, format_record, GREEN, YELLOW
 
     skill = {"router": "SKILL", "session_id": "s1", "timestamp": 1000,
              "decision": "use", "predicted_skill": "loop"}
@@ -101,9 +101,9 @@ def test_follow_matching():
 
 
 def test_decision_hooks_session_ids():
-    from src.core import training_log, provider
-    from src.model_router import hook as model_hook, state as model_state
-    from src.skill_router import hook as skill_hook, state as skill_state, picker
+    from core.py import training_log, provider
+    from hooks.model_router import hook as model_hook, state as model_state
+    from hooks.skill_router import hook as skill_hook, state as skill_state, picker
 
     # Replace only classifier calls and file paths; run real stats and JSONL writes.
     with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
@@ -135,8 +135,8 @@ def test_decision_hooks_session_ids():
 
 
 def test_legacy_stats():
-    from src.model_router.state import RouterStats
-    from src.skill_router.state import SkillRouterStats
+    from hooks.model_router.state import RouterStats
+    from hooks.skill_router.state import SkillRouterStats
 
     with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
         model, skill = RouterStats(), SkillRouterStats()
@@ -151,7 +151,7 @@ def test_legacy_stats():
 
 
 def test_pending_followed_and_expiry():
-    from src.tools.watch_decisions import PendingDecisions
+    from core.py.tools.watch_decisions import PendingDecisions
 
     now = [1000]
     pending = PendingDecisions(clock=lambda: now[0])
@@ -171,7 +171,7 @@ def test_pending_followed_and_expiry():
 
 
 def test_pending_rejects_unmatched_actions_and_null_sessions():
-    from src.tools.watch_decisions import PendingDecisions
+    from core.py.tools.watch_decisions import PendingDecisions
 
     skill = {"router": "SKILL", "session_id": "s1", "timestamp": 1000,
              "decision": "use", "predicted_skill": "loop"}
@@ -190,7 +190,7 @@ def test_pending_rejects_unmatched_actions_and_null_sessions():
 
 
 def test_pending_dispatch_and_older_decision():
-    from src.tools.watch_decisions import PendingDecisions, is_followed
+    from core.py.tools.watch_decisions import PendingDecisions, is_followed
 
     model = {"router": "MODEL", "session_id": "s1", "timestamp": 1000,
              "decision": "use", "predicted_size": "large"}
@@ -223,7 +223,7 @@ def test_pending_dispatch_and_older_decision():
 
 
 def test_ignored_format():
-    from src.tools.watch_decisions import format_ignored, RED
+    from core.py.tools.watch_decisions import format_ignored, RED
 
     decision = {"router": "MODEL", "session_id": "s1", "timestamp": 1000,
                 "decision": "use", "predicted_size": "large", "input_text": "long prompt " * 30}

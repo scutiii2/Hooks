@@ -1,6 +1,6 @@
 """Run 10 sample messages through Jev directly and print a results table."""
-from src.core.classifiers import JevClassifier, ClassifierError
-from src.tools.watch_decisions import DISPATCH
+from core.py.classifiers import JevClassifier, ClassifierError
+from core.py.tools.watch_decisions import DISPATCH
 
 SAMPLES = [
     ("tiny?", "What's the capital of France?"),

@@ -9,7 +9,7 @@ CRITERIA = {"tiny": "a", "large": "b"}
 
 
 def _call(body=None, error=None, key="k"):
-    from src.core.classifiers import JevClassifier
+    from core.py.classifiers import JevClassifier
 
     response = io.BytesIO(json.dumps(body).encode()) if body is not None else None
     opener = patch("urllib.request.urlopen", side_effect=error) if error else \
@@ -19,7 +19,7 @@ def _call(body=None, error=None, key="k"):
 
 
 def _fails(**kwargs) -> bool:
-    from src.core.classifiers import ClassifierError
+    from core.py.classifiers import ClassifierError
 
     try:
         _call(**kwargs)
@@ -51,7 +51,7 @@ def test_jev_wraps_network_errors():
 
 
 def test_classify_size_rejects_unknown_size():
-    from src.core.classifiers import Classifier, ClassifierError
+    from core.py.classifiers import Classifier, ClassifierError
 
     class Fake(Classifier):
         def ask_choice(self, subject, criteria, timeout):
@@ -65,23 +65,23 @@ def test_classify_size_rejects_unknown_size():
 
 
 def test_config_precedence():
-    from src.core import config
+    from core.py import config
 
     with patch.dict(os.environ, {"CONFIDENCE_THRESHOLD": "42"}):
-        assert config.get_confidence_threshold() == 42
+        assert config.get_confidence_threshold("model_router") == 42
     with patch.dict(os.environ, {"CONFIDENCE_THRESHOLD": ""}), \
             patch.object(config, "_read_config", return_value={"confidence_threshold": {"jev": 71}}):
-        assert config.get_confidence_threshold() == 71
-    with patch.dict(os.environ, {"CONFIDENCE_THRESHOLD": ""}), patch.object(config, "CONFIG_PATH", "missing.json"):
-        assert config.get_confidence_threshold() == 60
+        assert config.get_confidence_threshold("model_router") == 71
+    with patch.dict(os.environ, {"CONFIDENCE_THRESHOLD": ""}), patch.object(config, "HOOKS", "missing"):
+        assert config.get_confidence_threshold("model_router") == 60
 
 
 def test_skill_picker_runs_batches_in_parallel():
     import threading
     import time
-    from src.core.classifiers import ClassifierError
-    from src.skill_router import picker as picker_module
-    from src.skill_router.picker import SkillPicker
+    from core.py.classifiers import ClassifierError
+    from hooks.skill_router import picker as picker_module
+    from hooks.skill_router.picker import SkillPicker
 
     skills = [(f"s{i}", "d") for i in range(6)]
     calls, lock = [], threading.Lock()
@@ -112,7 +112,7 @@ def test_skill_picker_runs_batches_in_parallel():
 
 
 def test_jev_retries_once_on_429():
-    from src.core.classifiers import JevClassifier
+    from core.py.classifiers import JevClassifier
 
     def too_many():
         return urllib.error.HTTPError("u", 429, "slow down", {}, io.BytesIO(b"x"))
@@ -126,7 +126,7 @@ def test_jev_retries_once_on_429():
 
 
 def _fails_with(_opened) -> bool:
-    from src.core.classifiers import ClassifierError, JevClassifier
+    from core.py.classifiers import ClassifierError, JevClassifier
 
     try:
         JevClassifier().ask_choice("m", CRITERIA, 1.0)
@@ -139,20 +139,21 @@ def test_hook_logs_failures():
     import contextlib
     import tempfile
     from pathlib import Path
-    from src.core import provider, training_log
-    from src.model_router import hook, state
+    from core.py import provider, training_log
+    from core.py.classifiers import ClassifierError
+    from hooks.model_router import hook, state
 
     with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
         path = Path(tmp) / "failures.jsonl"
         payload = json.dumps({"session_id": "s", "prompt": "write a long detailed report please"})
-        with patch.object(training_log.failure_log, "path", str(path)),                 patch.object(state, "is_enabled", return_value=True),                 patch.object(state, "record_jev_failure"),                 patch.object(provider, "classify_size", side_effect=provider.ProviderError("HTTP 503: down")),                 patch("sys.stdin", io.StringIO(payload)), contextlib.suppress(SystemExit):
+        with patch.object(training_log.failure_log, "path", str(path)),                 patch.object(state, "is_enabled", return_value=True),                 patch.object(state, "record_jev_failure"),                 patch.object(provider, "classify_size", side_effect=ClassifierError("HTTP 503: down")),                 patch("sys.stdin", io.StringIO(payload)), contextlib.suppress(SystemExit):
             hook.main()
         record = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
     assert record["source"] == "MODEL" and record["error"] == "HTTP 503: down" and "elapsed_ms" in record
 
 
 def test_privacy_filter():
-    from src.core.privacy import is_private
+    from core.py.privacy import is_private
 
     for text in ["fix my .env file", "the API key leaked", "my password is x", "rotate the ssh key",
                  "export OPENAI=sk-abcdef123456", "use the access token", "Secret handling"]:
@@ -162,7 +163,7 @@ def test_privacy_filter():
         assert is_private(text), text
     for text in ["count the tokens in this prompt", "sort a dict by key", "write the readme", "environment setup",
                  "commit 6329379c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f60", "see get_confidence_threshold_for_provider_name",
-                 "PromptSubmitHookAdditionalContextHandler", r"D:\User\Documents\Programming\Python\ClaudeRouters\src",
+                 "PromptSubmitHookAdditionalContextHandler", r"D:\User\Documents\Programming\AI\Hooks\ClaudeRouters\src",
                  "https://api.typesafe.ai/v1/systemone-request-handler-v2"]:
         assert not is_private(text), text
 
@@ -189,8 +190,8 @@ def _run_hook(hook, prompt, log, patches) -> str:
 
 
 def test_model_hook_injects_tag_and_logs():
-    from src.core import provider, training_log
-    from src.model_router import hook, state
+    from core.py import provider, training_log
+    from hooks.model_router import hook, state
 
     result = {"size": "large", "confidence": 80, "provider": "jev"}
     for threshold, decision in ((60, "use"), (90, "fallback")):
@@ -205,8 +206,8 @@ def test_model_hook_injects_tag_and_logs():
 
 
 def test_skill_hook_injects_tag_skips_and_counts():
-    from src.core import training_log
-    from src.skill_router import builtins, hook, picker, state
+    from core.py import training_log
+    from hooks.skill_router import builtins, hook, picker, state
 
     result = {"skill": "pdf", "confidence": 75, "decision": "use", "provider": "jev", "error": None}
     no_notice = patch.object(builtins, "due_notice", return_value=None)
@@ -233,14 +234,29 @@ def test_skill_hook_injects_tag_skips_and_counts():
         notice + chr(10) + "[SKILL_SUGGESTION skill=pdf confidence=75%]")
 
 
+def test_env_layers():
+    import tempfile
+    from pathlib import Path
+    from core.py import env_load
+
+    with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
+        root = Path(tmp)
+        (root / "h").mkdir()
+        (root / ".env").write_text("A=root" + chr(10) + "B=root" + chr(10) + "C=root", encoding="utf-8")
+        (root / "h" / ".env").write_text("B=hook" + chr(10) + "C=hook", encoding="utf-8")
+        with patch.object(env_load, "ROOT", str(root)), patch.object(env_load, "HOOKS", str(root)), \
+                patch.dict(os.environ, {"C": "process"}):
+            env_load.load_env("h")
+            assert (os.environ["A"], os.environ["B"], os.environ["C"]) == ("root", "hook", "process")
+
+
 def test_log_rotates_when_full():
     import tempfile
     from pathlib import Path
-    from src.core import training_log
+    from core.py import training_log
 
     with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
-        log = training_log.JsonlLog("t.jsonl")
-        log.path = str(Path(tmp) / "t.jsonl")
+        log = training_log.JsonlLog(str(Path(tmp) / "t.jsonl"))
         with patch.object(training_log, "MAX_BYTES", 50):
             log.append({"a": "x" * 60})
             log.append({"a": "y"})
@@ -251,7 +267,7 @@ def test_log_rotates_when_full():
 def test_catalog_reads_skill_files_and_builtins():
     import tempfile
     from pathlib import Path
-    from src.skill_router import catalog
+    from hooks.skill_router import catalog
 
     def doc(*lines):
         return "\n".join(lines)
@@ -274,7 +290,7 @@ def test_builtins_check_is_due_monthly():
     import datetime
     import tempfile
     from pathlib import Path
-    from src.skill_router import builtins
+    from hooks.skill_router import builtins
 
     verified = datetime.date.fromisoformat(builtins.VERIFIED)
     with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp,             patch.object(builtins._Reminded, "path", str(Path(tmp) / "r.json")):
@@ -286,7 +302,7 @@ def test_builtins_check_is_due_monthly():
 
 
 def test_skip_rules():
-    from src.core.hook_io import should_skip
+    from core.py.hook_io import should_skip
 
     for text in ["", "  ", "yes do that please now ok", "go ahead", "fix .env now please"]:
         assert should_skip(text), text
@@ -297,17 +313,16 @@ def test_skip_rules():
 def test_calibrate_load_reads_rotated_backup():
     import tempfile
     from pathlib import Path
-    from src.tools import calibrate
+    from core.py.tools import calibrate
 
     with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
         (Path(tmp) / "l.jsonl.1").write_text('{"n": 1}\n', encoding="utf-8")
         (Path(tmp) / "l.jsonl").write_text('{"n": 2}\n', encoding="utf-8")
-        with patch.object(calibrate, "TRAINING_DIR", tmp):
-            assert [r["n"] for r in calibrate.load("l.jsonl", "X")] == [1, 2]
+        assert [r["n"] for r in calibrate.load(str(Path(tmp) / "l.jsonl"), "X")] == [1, 2]
 
 
 def test_latency_percentiles():
-    from src.tools.calibrate import percentile
+    from core.py.tools.calibrate import percentile
 
     assert percentile([10, 20, 30, 40], 50) == 30
     assert percentile([10, 20, 30, 40], 95) == 40
@@ -315,7 +330,7 @@ def test_latency_percentiles():
 
 
 def test_watcher_formats_latency_and_failures():
-    from src.tools.watch_decisions import format_record
+    from core.py.tools.watch_decisions import format_record
 
     base = {"timestamp": 1.0, "input_text": "hello", "confidence": 80, "decision": "use", "provider": "jev"}
     timed = format_record({**base, "router": "MODEL", "predicted_size": "large", "elapsed_ms": 412}, 200)

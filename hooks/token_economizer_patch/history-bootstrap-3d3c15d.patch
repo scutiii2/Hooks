@@ -1,0 +1,456 @@
+diff --git a/tokeneconomizer/plugin/accounting.py b/tokeneconomizer/plugin/accounting.py
+index 6d977b5..fcfc89c 100644
+--- a/tokeneconomizer/plugin/accounting.py
++++ b/tokeneconomizer/plugin/accounting.py
+@@ -41,6 +41,7 @@ def summarize(records):
+                    if r.get("kind") in ("session", "overhead"))
+     return {
+         "sessions": len(sessions),
++        "historical_sessions": sum(1 for r in sessions if r.get("historical")),
+         "priced_sessions": len(priced),
+         "effective_tokens": exec_total,
+         "overhead_tokens": oh_total,
+diff --git a/tokeneconomizer/plugin/cli.py b/tokeneconomizer/plugin/cli.py
+index 18587ef..1cb25cb 100644
+--- a/tokeneconomizer/plugin/cli.py
++++ b/tokeneconomizer/plugin/cli.py
+@@ -24,6 +24,10 @@
+                                       now (runs by itself, once, after an upgrade)
+     te repos merge KEY [INTO]         merge the state directory KEY into INTO (default: this
+                                       repository's), for state whose checkouts are gone
++    te ingest-claude-history [--limit N]
++                                      learn from the sessions Claude Code saved before the plugin
++                                      (`claude_history_path`, default ~/.claude); only logs not
++                                      imported yet, so it can be run again for newer ones
+     te doctor                         check the installation
+     te --host copilot probe           real Copilot sessions in a throwaway repository: does a
+                                       learned fact change what the model does, and what does the
+@@ -42,7 +46,8 @@ import sys
+ import time
+ 
+ from .. import loopguard
+-from . import accounting, denylist, fold, hosts, paths, repomap, repos, sidecall, toolcheck
++from . import (accounting, denylist, fold, history, hosts, paths, repomap, repos, sidecall,
++               toolcheck)
+ from .config import canonical, unset_config, write_config
+ from .context import LiveContext
+ from .paths import state_root
+@@ -150,7 +155,9 @@ def cmd_status(args):
+         print(f"  warning      {w}")
+     if out["session_note"]:
+         print(f"  note         {out['session_note']}")
+-    print(f"  sessions     {ledger['sessions']} folded, "
++    print(f"  sessions     {ledger['sessions']} folded"
++          + (f" ({ledger['historical_sessions']} imported from history)"
++             if ledger["historical_sessions"] else "") + ", "
+           f"{accounting.fmt_tokens(ledger['effective_tokens'])} effective tokens, plugin "
+           f"overhead {accounting.fmt_tokens(ledger['overhead_tokens'])} "
+           f"({ledger['overhead_frac']:.1%})")
+@@ -513,6 +520,21 @@ def cmd_fold(args):
+     return 0
+ 
+ 
++def cmd_ingest_claude_history(args):
++    root = state_root()
++    if _refuse_unwritable(root):
++        return 1
++    home = history.history_home(_ctx(args).config)
++    tally = history.ingest(root, os.environ, home, limit=args.limit)
++    if tally is None:
++        print("another import is running; try again in a minute")
++        return 1
++    if not args.quiet:
++        print(f"{home}: " + (", ".join(f"{n} {k}" for k, n in sorted(tally.items()))
++                             or "nothing new to import"))
++    return 0
++
++
+ def cmd_judge(args):
+     """The detached half of the stuck judge (see plugin/judge.py); not for people."""
+     from . import judge
+@@ -734,6 +756,10 @@ def build_parser():
+     p.add_argument("--session", action="append")
+     p.add_argument("--verbose", action="store_true")
+     p.set_defaults(fn=cmd_fold)
++    p = add("ingest-claude-history")
++    p.add_argument("--limit", type=int, default=None)
++    p.add_argument("--quiet", action="store_true")
++    p.set_defaults(fn=cmd_ingest_claude_history)
+     p = add("judge")
+     p.add_argument("--session", required=True)
+     p.add_argument("--job", required=True)
+diff --git a/tokeneconomizer/plugin/config.py b/tokeneconomizer/plugin/config.py
+index 877a1e8..b199b24 100644
+--- a/tokeneconomizer/plugin/config.py
++++ b/tokeneconomizer/plugin/config.py
+@@ -45,7 +45,10 @@ person can tune by hand:
+   * loopguard_nudges            -- redirects per prompt-turn before the guard only notifies;
+   * loopguard.<name>            -- one guard threshold, pinned over the preset and over what the
+                                    repository's history learned (LOOPGUARD_KEYS);
+-  * repomap, repomap_tokens, repomap_python, repomap_timeout -- the opt-in repository map.
++  * repomap, repomap_tokens, repomap_python, repomap_timeout -- the opt-in repository map;
++  * bootstrap_from_claude_history -- at the first session start, learn from the sessions already
++                                   saved under claude_history_path (default ~/.claude), in the
++                                   background (`te ingest-claude-history` imports new ones later).
+ 
+ The names before the mechanisms were renamed are read too, so an existing config file keeps
+ working: `inject` (microskills), `untool` (toolprune), `spiral` (loopguard), with their
+@@ -162,6 +165,8 @@ class LiveConfig:
+     paid_model: str = ""
+     shadow: bool = False
+     vocabulary: str = "auto"
++    bootstrap_from_claude_history: bool = True
++    claude_history_path: str = "~/.claude"
+     warnings: list = field(default_factory=list)
+ 
+     _CHOICES = {"mode": MODES, "microskills": MICROSKILLS, "toolprune": TOOLPRUNE,
+@@ -250,6 +255,8 @@ class LiveConfig:
+ # Environment variables, old names first so that a new name set alongside its old one wins.
+ _ENV = {"TE_MODE": "mode", "TE_SHADOW": "shadow",
+         "TE_PAID_MODEL": "paid_model", "TE_VOCABULARY": "vocabulary",
++        "TE_BOOTSTRAP_FROM_CLAUDE_HISTORY": "bootstrap_from_claude_history",
++        "TE_CLAUDE_HISTORY_PATH": "claude_history_path",
+         "TE_INJECT": "microskills", "TE_INJECT_MAX_FACTS": "microskills_max_facts",
+         "TE_INJECT_MAX_TOKENS": "microskills_max_tokens",
+         "TE_PROPOSE_EVERY": "microskills_propose_every",
+diff --git a/tokeneconomizer/plugin/controller.py b/tokeneconomizer/plugin/controller.py
+index bedeb9a..ff3b06f 100644
+--- a/tokeneconomizer/plugin/controller.py
++++ b/tokeneconomizer/plugin/controller.py
+@@ -24,7 +24,7 @@ import os
+ import time
+ 
+ from .. import loopguard
+-from . import denylist, fold, repomap, repos, sidecall
++from . import denylist, fold, history, repomap, repos, sidecall
+ from .hosts import merge_outputs
+ from .paths import ensure_launcher
+ 
+@@ -163,6 +163,17 @@ class LiveController:
+                                                 "SessionStart", "cached"))
+                 s["repomap_done"] = True
+ 
++        # The first start learns from the sessions Claude Code saved before the plugin, in the
++        # background. (TE_FOLD_SYNC=1, the tests' inline mode, never reads the real ~/.claude.)
++        if (self.cfg.bootstrap_from_claude_history and self.ctx.env.get("TE_FOLD_SYNC") != "1"
++                and history.bootstrap_due(self.ctx.root)):
++            self.ctx.spawn(["ingest-claude-history", "--quiet"], "history.log")
++            if not self.cfg.shadow:
++                outputs.append(self.host.notice(
++                    f"TokenEconomizer: learning in the background from the sessions already "
++                    f"saved in {self.cfg.claude_history_path} (`bootstrap_from_claude_history=off` "
++                    f"stops this; `~/.tokeneconomizer/bin/te ingest-claude-history` imports newer ones)."))
++
+         if seen != seen_before:
+             self.store.write("notices.json", seen)
+         self._save(s)
+diff --git a/tokeneconomizer/plugin/fold.py b/tokeneconomizer/plugin/fold.py
+index 1cb4785..ebdd0c8 100644
+--- a/tokeneconomizer/plugin/fold.py
++++ b/tokeneconomizer/plugin/fold.py
+@@ -63,7 +63,7 @@ def _run_dir(workdir, trace_path):
+     return run
+ 
+ 
+-def _fold_microskills(ctx, adapter, run_dir, session_id, injected=None):
++def _fold_microskills(ctx, adapter, run_dir, session_id, injected=None, historical=False):
+     profile = ctx.config.microskills
+     if profile == "off":
+         return None
+@@ -74,9 +74,10 @@ def _fold_microskills(ctx, adapter, run_dir, session_id, injected=None):
+                            max_facts=ctx.config.microskills_max_facts,
+                            max_tokens=ctx.config.microskills_max_tokens)
+     # Paused once the host's CLI said it is not signed in (`sidecall.paused`): the free layer
+-    # still learns.
++    # still learns. An imported session never starts a paid call: a bulk import must not spend.
+     runner = (sidecall.runner_for(ctx.host.name, ctx.config)
+-              if icfg.paid and not sidecall.paused(ctx.host.name, ctx.root) else None)
++              if icfg.paid and not historical and not sidecall.paused(ctx.host.name, ctx.root)
++              else None)
+     stage = PrefixStage(icfg, ctx.repo.label, ctx.mech_dir, False, runner=runner,
+                         optimizer_model="agent", adapter=adapter, agent=ctx.host.name)
+     srow = {"resolved": None}
+@@ -107,7 +108,7 @@ def enough_evidence(sessions, prompts, cfg, high_risk=False):
+ 
+ 
+ def _fold_toolprune(ctx, adapter, run_dir, session_id, transcript=None, workdir=None,
+-                    prompts=None):
++                    prompts=None, historical=False):
+     """Tool pruning's evidence: the sessions a tool went unused (`ToolingStage`'s streaks) and
+     the prompts those sessions ran (`prompt_streaks`), weighed by `enough_evidence`. A list
+     applies from a later session, since a running session keeps the tools it started with.
+@@ -135,13 +136,15 @@ def _fold_toolprune(ctx, adapter, run_dir, session_id, transcript=None, workdir=
+     stage.catalog_desc = dict(st.get("catalog_desc") or {})
+     applied = denylist.applied_for(ctx.store, ctx.repo.root, ctx.host.name)
+     kept = set(denylist.kept_for(ctx.store, ctx.repo.root, ctx.host.name))   # given back
+-    stage._exclude_tools = list(applied)        # the mask this session actually ran under
++    # The mask this session actually ran under: none for an imported one, which ran before the
++    # plugin's current deny list existed.
++    stage._exclude_tools = [] if historical else list(applied)
+     # A tool that has since become protected (the web tools, from this version on) comes back:
+     # remove the plugin's OWN deny rule for it. Only rules it recorded adding, never one the
+     # person wrote, and only in the direction of giving a tool back.
+     protected = adapter.protected_tools()
+     restored = []
+-    if any(t in protected for t in applied) and not ctx.config.shadow:
++    if any(t in protected for t in applied) and not ctx.config.shadow and not historical:
+         try:
+             restored = denylist.restore(ctx.repo.root, ctx.store,
+                                       [t for t in applied if t in protected], host=host)
+@@ -184,8 +187,12 @@ def _fold_toolprune(ctx, adapter, run_dir, session_id, transcript=None, workdir=
+         proposal = [t for t in raw if t not in applied and t not in kept]
+     doc["proposal"] = proposal
+     doc["new_in_proposal"] = sorted(set(proposal) - set(st.get("proposal", [])))
+-    if ctx.config.toolprune == "auto" and proposal and not ctx.config.shadow:
++    # An import only builds evidence: the checkout it ran in may be long gone, so nothing is
++    # held for writing until a live session of the repository folds.
++    if ctx.config.toolprune == "auto" and proposal and not ctx.config.shadow and not historical:
+         _hold(doc, st, proposal, ctx.repo.root)
++    elif historical:
++        doc.update({k: st[k] for k in ("auto_pending", "auto_apply_refused") if k in st})
+     if restored:
+         doc["restored_protected"] = restored
+     ctx.store.write("untool.json", doc)
+@@ -355,8 +362,13 @@ def schedule_pending(ctx):
+ CODEX_HIGH_RISK = frozenset({"image_media"})
+ 
+ 
+-def fold_session(ctx, session_id, transcript_path=None):
+-    """Fold one finished session. Returns the ledger record, or None if already folded."""
++def fold_session(ctx, session_id, transcript_path=None, historical=False):
++    """Fold one finished session. Returns the ledger record, or None if already folded.
++
++    `historical` marks a session imported from the agent's own history (`history.py`) rather
++    than watched by the plugin's hooks. It is folded by the same stages and counted once like any
++    other, but it makes no paid call, holds no deny list for writing, and its ledger record and
++    `folded.json` entry say `historical`."""
+     sess_name = os.path.join("sessions", f"{session_id}.json")
+     with ctx.store.locked("fold", timeout=FOLD_LOCK_WAIT_S) as got:
+         if not got:
+@@ -370,6 +382,8 @@ def fold_session(ctx, session_id, transcript_path=None):
+                   "repo": ctx.repo.label, "folded_at": time.time(),
+                   "started": sess.get("started"), "ended": sess.get("ended"),
+                   "shadow": ctx.config.shadow}
++        if historical:
++            record["historical"] = True
+         workdir = tempfile.mkdtemp(prefix="te-fold-")
+         try:
+             trace_path = ctx.host.mechanism_trace(transcript, workdir) if transcript else None
+@@ -387,15 +401,19 @@ def fold_session(ctx, session_id, transcript_path=None):
+                                       protect=ctx.config.toolprune_protect)
+                 with ctx.store.locked("mechanisms"):
+                     inj = _fold_microskills(ctx, adapter, run_dir, session_id,
+-                                            injected=sess.get("injected_ids"))
++                                            injected=sess.get("injected_ids"),
++                                            historical=historical)
+                     # A session that ran no prompt is no evidence about the tools.
+                     unt = None if prompts == 0 else _fold_toolprune(
+                         ctx, adapter, run_dir, session_id, transcript=transcript,
+-                        workdir=workdir, prompts=prompts)
++                        workdir=workdir, prompts=prompts, historical=historical)
+                 record["injection"] = inj
+                 record["untool"] = unt
+-                if unt and unt.get("pending"):
++                if unt and unt.get("pending") and not historical:
+                     schedule_pending(ctx)
++                if historical and ctx.config.loopguard != "off":
++                    from . import history
++                    history.fold_turns(ctx, transcript)
+                 ctx.host.settle(transcript)
+                 usage = ctx.host.session_usage(transcript)
+                 eff, priced_by = accounting.effective(usage)
+@@ -415,7 +433,8 @@ def fold_session(ctx, session_id, transcript_path=None):
+                     "spiral_judge_tokens": float(sess.get("judge_tokens", 0) or 0),
+                     "spiral_nudge_writer_tokens": float(sess.get("writer_tokens", 0) or 0)}})
+             ctx.store.append("ledger.jsonl", record)
+-            folded[session_id] = {"at": time.time(), "transcript": transcript}
++            folded[session_id] = dict({"at": time.time(), "transcript": transcript},
++                                      **({"historical": True} if historical else {}))
+             ctx.store.write("folded.json", folded)
+             if sess:
+                 sess["folded"] = True
+diff --git a/tokeneconomizer/plugin/history.py b/tokeneconomizer/plugin/history.py
+new file mode 100644
+index 0000000..fa6085a
+--- /dev/null
++++ b/tokeneconomizer/plugin/history.py
+@@ -0,0 +1,179 @@
++"""Bootstrapping from the sessions Claude Code already saved, before any new one is watched.
++
++Learning enters the plugin in one place: `fold.fold_session` folds a finished session's log into
++its repository's state (micro-skills, tool-pruning evidence, the ledger). An old session is no
++different, so this module only finds the logs under `<claude_history_path>/projects/`, works out
++which repository each ran in, and hands each to `fold_session(..., historical=True)`. Nothing is
++learned a second way.
++
++  * Incremental: `<state root>/history.json` records every log's size, mtime and outcome, so a
++    rescan reads only logs that are new or changed; it is saved as it goes, so an interrupted
++    import resumes where it stopped.
++  * No double counting: `folded.json` (per repository, keyed by session id) is the dedupe, so a
++    session the hooks already folded, or a log seen twice, is learned from once.
++  * Tolerant: a log that is empty, has no prompt or no directory, or that raises, is recorded
++    with its outcome and skipped; the rest go on.
++  * Quiet: a log written to in the last `fold.STALE_S` seconds may be a running session, which
++    its own hooks fold; it is left for the next scan.
++
++Imported records say `historical: true` in `ledger.jsonl` and `folded.json`. The loop guard's
++envelope also learns from the imported turns (`fold_turns`), as it does from live ones.
++"""
++import os
++import time
++
++from .. import loopguard
++from ..trace.claude import CONVERSATION, _is_prompt
++from ..trace.jsonl import records
++from . import fold, hosts, repos
++from .context import LiveContext
++from .store import Store
++
++STATE = "history.json"
++SAVE_EVERY = 25
++RETRY_S = 3600          # an auto-start that never completed is tried again after this long
++
++
++def history_home(cfg):
++    return os.path.abspath(os.path.expanduser(cfg.claude_history_path))
++
++
++def session_files(home):
++    """[(mtime, size, path)] of the session logs under `<home>/projects/*/`, oldest first.
++    Only the top level of each project folder: a session's subagent logs are in a folder of its
++    own and are read with the session."""
++    out = []
++    try:
++        projects = list(os.scandir(os.path.join(home, "projects")))
++    except OSError:
++        return out
++    for d in projects:
++        try:
++            for e in os.scandir(d.path):
++                if e.name.endswith(".jsonl") and e.is_file():
++                    st = e.stat()
++                    out.append((st.st_mtime, st.st_size, e.path))
++        except OSError:
++            continue
++    return sorted(out)
++
++
++def session_cwd(path, limit=500):
++    """The directory a session ran in: the first `cwd` its log records."""
++    for i, ev in enumerate(records(path)):
++        if isinstance(ev.get("cwd"), str) and ev["cwd"]:
++            return ev["cwd"]
++        if i >= limit:
++            break
++    return None
++
++
++def bootstrap_due(root, now=None):
++    """Is this the first start, i.e. has no import ever been begun (or one begun long ago never
++    finished)? Marks it begun, so that only one session start launches it."""
++    st = Store(root)
++    doc = st.read(STATE)
++    now = now or time.time()
++    if doc is not None and (doc.get("completed") or now - doc.get("started", 0) < RETRY_S):
++        return False
++    st.write(STATE, dict(doc or {}, started=now))
++    return True
++
++
++def ingest(root, env, home, now=None, limit=None):
++    """Import the new or changed logs under `home`. Returns {outcome: count}, or None when
++    another import holds the lock."""
++    host = hosts.HOSTS["claude"]()
++    st = Store(root)
++    now = now or time.time()
++    tally = {}
++    with st.locked("history", timeout=0) as got:
++        if not got:
++            return None
++        doc = st.read(STATE) or {}
++        seen = doc.get("files") or {}
++        touched = {}
++        todo = [f for f in session_files(home) if seen.get(f[2], [None, None])[:2] != [f[1], f[0]]]
++        done, cut = 0, False
++        for mtime, size, path in todo:
++            if now - mtime < fold.STALE_S:
++                continue
++            if limit and done >= limit:
++                cut = True
++                break
++            done += 1
++            try:
++                outcome = _import_one(host, root, env, path, touched)
++            except Exception as e:      # a corrupt log must not stop the rest
++                outcome = f"error: {type(e).__name__}: {e}"[:200]
++            seen[path] = [size, mtime, outcome]
++            key = outcome.split(":")[0]
++            tally[key] = tally.get(key, 0) + 1
++            if done % SAVE_EVERY == 0:
++                st.write(STATE, dict(doc, files=seen))
++        for ctx in touched.values():
++            repos.note_repo(root, ctx.repo)
++        st.write(STATE, dict(doc, files=seen, updated=now, **({} if cut else {"completed": now})))
++    return tally
++
++
++def _import_one(host, root, env, path, touched):
++    sid = os.path.splitext(os.path.basename(path))[0]
++    if not host.prompt_count(path):
++        return "empty"               # no prompt: nothing a session could teach
++    cwd = session_cwd(path)
++    if not cwd:
++        return "no_directory"
++    ctx = LiveContext.build(host, cwd, env, session_id=sid, settle=False)
++    rec = fold.fold_session(ctx, sid, path, historical=True)
++    if rec is None:
++        return "already_folded"
++    touched[ctx.repo.key] = ctx
++    return "folded"
++
++
++# ---- the loop guard's envelope ---------------------------------------------------------------
++def _turns(path):
++    """One list of [name, args, result, exit_code] per prompt-turn of a Claude Code log."""
++    turns, cur, calls = [], None, {}
++    for ev in records(path):
++        if _is_prompt(ev):
++            if cur:
++                turns.append(cur)
++            cur, calls = [], {}
++        elif cur is not None and ev.get("type") in CONVERSATION and not ev.get("isSidechain"):
++            content = (ev.get("message") or {}).get("content")
++            for b in content if isinstance(content, list) else ():
++                if not isinstance(b, dict):
++                    continue
++                if b.get("type") == "tool_use":
++                    args = b.get("input") if isinstance(b.get("input"), dict) else {}
++                    calls[b.get("id")] = [str(b.get("name") or ""), args, "", None]
++                    cur.append(calls[b.get("id")])
++                elif b.get("type") == "tool_result" and b.get("tool_use_id") in calls:
++                    text = b.get("content")
++                    if isinstance(text, list):
++                        text = " ".join(x.get("text", "") for x in text if isinstance(x, dict))
++                    call = calls[b["tool_use_id"]]
++                    call[2] = (text if isinstance(text, str) else "")[:hosts.RESULT_CAP]
++                    if b.get("is_error"):
++                        m = hosts._EXIT_RE.search(call[2][:400])
++                        call[3] = int(m.group(1)) if m else 1
++    if cur:
++        turns.append(cur)
++    return turns
++
++
++def fold_turns(ctx, transcript):
++    """Feed an imported session's prompt-turns to the repository's envelope, replayed through
++    the live `TurnGuard` with no envelope and no judge (it observes, and cannot act)."""
++    cfg = ctx.config
++    with ctx.store.locked("envelope"):
++        tracker = loopguard.load_envelope(ctx.store, cfg.loopguard_aggr,
++                                          cfg.loopguard_thresholds)
++        for calls in _turns(transcript):
++            g = loopguard.TurnGuard()
++            for name, args, text, code in calls:
++                g.fold(name, args, text, code)
++            tracker.update(g.cum_turns, g.resolved_proxy(True), snapshot=g.whole.snapshot())
++        loopguard.save_envelope(ctx.store, tracker)

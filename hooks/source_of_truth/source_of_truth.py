@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+"""SourceOfTruth: keep one copy of a project's agent rules and skills.
+
+Runs as a Claude Code (or Codex) hook, on SessionStart and after file or shell
+tool calls. For the project the session is in, it makes the single source of
+truth `AGENTS.md` and `.agents/skills/`, and turns the Claude Code side into a
+pointer to it:
+
+- `.claude/skills/` is a real folder, `.agents/skills/` is missing:
+  move it to `.agents/skills/` and leave a symlink `.claude/skills`.
+- `.agents/skills/` exists, `.claude/skills` is missing: add the symlink.
+- `CLAUDE.md` holds real rules, `AGENTS.md` is missing: move the rules to
+  `AGENTS.md` and leave `CLAUDE.md` as `@AGENTS.md`.
+- `AGENTS.md` exists, `CLAUDE.md` is missing: write `CLAUDE.md` as `@AGENTS.md`.
+
+It never overwrites or deletes content. When two real copies exist it leaves
+both alone and says so (on SessionStart only). It creates nothing for a project
+that has no rules or skills yet, and only acts inside the watched root (the
+Programming workspace this file sits in). A hook must never block, so every
+failure ends silently with exit code 0.
+
+    py source_of_truth.py [PROJECT_DIR]    run by hand for one folder
+"""
+from __future__ import annotations
+
+import json
+import os
+import sys
+from pathlib import Path
+
+# shortcut: one watched root (Programming/), not configurable; add a config file when a second root appears.
+ROOTS = [Path(__file__).resolve().parents[4]]
+STUB = "@AGENTS.md"
+LINK_TARGET = os.path.join("..", ".agents", "skills")
+
+
+def project_dirs(cwd: Path, roots: list[Path]) -> list[Path]:
+    """The session folder and its git root, when inside a watched root."""
+    cwd = cwd.resolve()
+    if not any(cwd.is_relative_to(r) for r in roots):
+        return []
+    root = next((p for p in (cwd, *cwd.parents) if (p / ".git").exists()), cwd)
+    if not any(root.is_relative_to(r) for r in roots):
+        root = cwd
+    return list(dict.fromkeys([root, cwd]))
+
+
+def unify_skills(project: Path) -> tuple[list[str], list[str]]:
+    """Return (changes, warnings) after making .claude/skills a link to .agents/skills."""
+    claude, agents = project / ".claude" / "skills", project / ".agents" / "skills"
+    if claude.is_symlink():
+        return [], []
+    moved = False
+    try:
+        if claude.is_dir():
+            if agents.exists() or agents.is_symlink():
+                return [], [f"{project.name}: .claude/skills and .agents/skills are both real folders; merge by hand into .agents/skills."]
+            agents.parent.mkdir(exist_ok=True)
+            claude.rename(agents)
+            moved = True
+        elif not (agents.is_dir() and not agents.is_symlink()):
+            return [], []
+        claude.parent.mkdir(exist_ok=True)
+        os.symlink(LINK_TARGET, claude, target_is_directory=True)
+    except OSError as exc:
+        if moved:
+            agents.rename(claude)  # put the folder back; a half-done move would hide the skills
+        return [], [f"{project.name}: cannot link .claude/skills ({exc}); on Windows turn on Developer Mode."]
+    action = "moved .claude/skills to .agents/skills and linked it back" if moved else "linked .claude/skills to .agents/skills"
+    return [f"{project.name}: {action}."], []
+
+
+def _norm(text: str) -> str:
+    return text.replace("\r\n", "\n").strip()
+
+
+def unify_rules(project: Path) -> tuple[list[str], list[str]]:
+    """Return (changes, warnings) after making CLAUDE.md a stub that imports AGENTS.md."""
+    claude, agents = project / "CLAUDE.md", project / "AGENTS.md"
+    if claude.is_symlink():
+        return [], []
+    try:
+        text = claude.read_text(encoding="utf-8") if claude.is_file() else None
+        if agents.is_file():
+            if text is None:
+                claude.write_text(STUB + "\n", encoding="utf-8")
+                return [f"{project.name}: wrote CLAUDE.md importing AGENTS.md."], []
+            if _norm(text) == STUB:
+                return [], []
+            if _norm(text) == _norm(agents.read_text(encoding="utf-8")):
+                claude.write_text(STUB + "\n", encoding="utf-8")
+                return [f"{project.name}: CLAUDE.md duplicated AGENTS.md; now imports it."], []
+            return [], [f"{project.name}: CLAUDE.md and AGENTS.md differ; merge by hand into AGENTS.md."]
+        if text and _norm(text) != STUB:
+            agents.write_bytes(claude.read_bytes())
+            claude.write_text(STUB + "\n", encoding="utf-8")
+            return [f"{project.name}: moved CLAUDE.md rules to AGENTS.md; CLAUDE.md now imports it."], []
+    except (OSError, UnicodeDecodeError) as exc:
+        return [], [f"{project.name}: cannot unify rules ({exc})."]
+    return [], []
+
+
+def run(cwd: Path, event: str, roots: list[Path] = ROOTS) -> dict | None:
+    """The hook output for this folder, or None when there is nothing to say."""
+    lines: list[str] = []
+    for project in project_dirs(cwd, roots):
+        for step in (unify_skills, unify_rules):
+            changes, warnings = step(project)
+            lines += [f"SourceOfTruth: {c}" for c in changes]
+            if event == "SessionStart":
+                lines += [f"SourceOfTruth: {w}" for w in warnings]
+    if not lines:
+        return None
+    return {"hookSpecificOutput": {"hookEventName": event, "additionalContext": "\n".join(lines)}}
+
+
+def main() -> int:
+    try:
+        data = {} if sys.stdin.isatty() else json.load(sys.stdin)
+        cwd = Path(sys.argv[1] if len(sys.argv) > 1 else data.get("cwd") or os.getcwd())
+        output = run(cwd, data.get("hook_event_name") or "SessionStart")
+        if output:
+            print(json.dumps(output))
+    except Exception:  # noqa: BLE001 - a hook must never block the session
+        pass
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

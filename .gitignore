@@ -1,5 +1,10 @@
-.env
-.venv/
+# Every dot-file and dot-folder is local state (.env, .data/, .cache/, .memory/, .venv/, ...).
+.*
+# ...except the ones that belong to the repo.
+!.gitignore
+!.github/
+!.claude/
+!.env.example
+
 __pycache__/
 *.pyc
-data/

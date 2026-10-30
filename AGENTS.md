@@ -1,4 +1,4 @@
-# ClaudeRouters
+# Hooks
 
 Project note: `Brain/Projects/ClaudeRouters.md` in the Obsidian vault (`../../Brain/` from this folder).
 

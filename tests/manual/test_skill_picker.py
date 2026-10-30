@@ -1,6 +1,6 @@
 """Run 10 real requests through the skill picker, flag misses vs expected."""
-from src.skill_router import picker as skill_picker
-from src.core import provider
+from hooks.skill_router import picker as skill_picker
+from core.py.classifiers import ClassifierError
 
 # (request, expected skill or None if no skill should fire)
 SAMPLES = [
@@ -25,7 +25,7 @@ def main():
             result = skill_picker.pick_skill(request, timeout=10.0)
             picked = result["skill"]
             conf = result["confidence"]
-        except provider.ProviderError as e:
+        except ClassifierError as e:
             picked = "ERROR"
             conf = str(e)
 
