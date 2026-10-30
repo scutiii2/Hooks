@@ -79,10 +79,43 @@ def _get(url, host=None):
 def test_http_routes(server, data):
     _write(data / "model_router" / "runs.jsonl", {"timestamp": 1, "outcome": "use"})
     status, body = _get(server + "/")
-    assert status == 200 and b"Hook logs" in body
+    assert status == 200 and b"Hooks" in body
     assert json.loads(_get(server + "/api/logs")[1])[0]["file"] == "model_router/runs.jsonl"
     assert json.loads(_get(server + "/api/tail?file=model_router/runs.jsonl")[1])[0]["outcome"] == "use"
     assert _get(server + "/api/tail?file=../x.jsonl")[0] == 404
     assert _get(server + "/api/tail?file=model_router/runs.jsonl&rows=abc")[0] == 400
     assert _get(server + "/nope")[0] == 404
     assert _get(server + "/api/logs", host="evil.example")[0] == 403
+
+
+def _post(url, body, ctype="application/json"):
+    request = urllib.request.Request(url, json.dumps(body).encode(), {"Content-Type": ctype}, method="POST")
+    try:
+        with urllib.request.urlopen(request) as r:
+            return r.status, json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        return e.code, json.loads(e.read())
+
+
+def test_run_commands(server):
+    names = [c["name"] for c in json.loads(_get(server + "/api/commands")[1])]
+    assert "model_router" in names and not {"web", "watch", "label"} & set(names)
+    assert _post(server + "/api/run", {"name": "web"})[0] == 404
+    assert _post(server + "/api/run", {"name": "model_router"}, "text/plain")[0] == 403
+    assert _post(server + "/api/run", {"args": "x"})[0] == 400
+    status, body = _post(server + "/api/run", {"name": "model_router", "args": "status"})
+    assert status == 200 and isinstance(body["output"], str) and "code" in body
+
+
+def test_run_command_strips_quotes_and_uses_no_shell(monkeypatch):
+    seen = {}
+
+    def fake_run(argv, **kwargs):
+        seen.update(argv=argv, **kwargs)
+        return type("Done", (), {"returncode": 0, "stdout": "ok", "stderr": ""})()
+
+    monkeypatch.setattr(web.subprocess, "run", fake_run)
+    assert web.run_command("skill_pick", '"two words" plain D:\a\b')["output"] == "ok"
+    assert seen["argv"][-3:] == ["two words", "plain", "D:\a\b"]
+    assert not seen.get("shell") and seen["timeout"] == web.RUN_TIMEOUT
+    assert web.run_command("skill_pick", '"unclosed')["code"] == 2

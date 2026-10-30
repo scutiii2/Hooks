@@ -88,13 +88,18 @@ Both decision logs include `session_id`. The PostToolUse hook records only the s
 
 With the followed hook installed and `followed.jsonl` present, a live `use` decision with no matching action after 90 seconds prints a red `ignored?` hint once. The question mark matters: Claude may legitimately answer directly for a short reply that needs conversation context, and a skill suggestion is a hint, not a command.
 
-## Web view of the logs
+## Web interface
 
 ```bat
-web.bat                  # local web view of the hook logs, same as run.bat web
+web.bat                  # same as run.bat web
 ```
 
-Opens nothing by itself; browse to `http://127.0.0.1:8765/` (`--port N` changes it). One tab per log under `.data/` (`runs.jsonl`, `decisions.jsonl`, `failures.jsonl`, `followed.jsonl`), newest row first, refreshed every 2 seconds, with a text filter. Decision rows get the watcher's `followed` / `pending` / `ignored?` status. The server listens on 127.0.0.1 only and rejects other Host headers. Prompt text is hidden until you tick "show prompts". It is read-only.
+Browse to `http://127.0.0.1:8765/` (`--port N` changes it). Two pages:
+
+- **Home**: the commands `run.bat` offers (`model_router`, `skill_router`, `skill_pick`, `te_patch`, `source_of_truth`, `calibrate`, `export`, `settings`), each with an arguments box and a Run button; the output shows under the card. A command stops after 120 seconds and gets no keyboard input. `web` (this server), `watch` (live terminal view) and `label` (interactive review) stay in `run.bat`.
+- **Logs**: one tab per log under `.data/` (`runs.jsonl`, `decisions.jsonl`, `failures.jsonl`, `followed.jsonl`), newest row first, refreshed every 2 seconds, with a text filter. Decision rows get the watcher's `followed` / `pending` / `ignored?` status. Prompt text is hidden until you tick "show prompts".
+
+The server listens on 127.0.0.1 only and rejects other Host headers. Running a command needs a POST with `Content-Type: application/json`, which other websites cannot send without a CORS preflight this server never grants. Home can change things (`settings add`, `te_patch apply`, `model_router on`), exactly like `run.bat`; the logs are read-only.
 
 ## Project layout
 
@@ -118,7 +123,7 @@ hooks/
 └── token_economizer_patch/   # reapplies my patch on TokenEconomizer after updates
 tests/                  # offline tests (`python -m pytest tests`); tests/manual/ holds real-classifier scripts (run with python -m tests.manual.<name>). The last two hooks keep their tests beside them.
 run.bat                 # run.bat: menu of hooks and tools; run.bat <name> [args] runs one (run.bat list shows the names)
-web.bat                 # local web view of the hook logs (127.0.0.1)
+web.bat                 # web interface: Home (run.bat commands) and Logs (127.0.0.1)
 .claude/                # settings.json, agents/ (router-haiku.md, router-sonnet.md)
 CLAUDE.md, AGENTS.md    # agent instructions (CLAUDE.md adds the router protocols)
 .env.example            # copy to .env

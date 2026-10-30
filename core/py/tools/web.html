@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hook Logs</title>
+<title>Hooks</title>
 <style>
   :root { --bg:#fafaf8; --fg:#1d1d1b; --muted:#6b6b66; --line:#deded8; --card:#fff; --accent:#2a5bd7;
           --ok:#1a7f37; --warn:#9a6700; --bad:#cf222e; }
@@ -13,6 +13,7 @@
   :root[data-theme="dark"] { --bg:#16161a; --fg:#e6e6e3; --muted:#9a9a94; --line:#2c2c33; --card:#1e1e24;
           --accent:#7aa2ff; --ok:#3fb950; --warn:#d29922; --bad:#ff7b72; }
   * { box-sizing: border-box; }
+  [hidden] { display:none !important; }
   body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, sans-serif; }
   main { max-width:1200px; margin:0 auto; padding:16px; }
   h1 { font-size:18px; margin:0 0 12px; }
@@ -30,12 +31,29 @@
   th { position:sticky; top:0; background:var(--card); color:var(--muted); font-weight:600; }
   td.time, td.num { font-variant-numeric: tabular-nums; }
   .ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); }
+  .tabs { display:flex; gap:6px; margin-bottom:14px; }
+  .tabs button { border:0; border-bottom:2px solid transparent; background:none; color:var(--muted); padding:6px 12px;
+                 cursor:pointer; font:inherit; font-size:16px; }
+  .tabs button[aria-pressed="true"] { color:var(--accent); border-color:var(--accent); font-weight:600; }
+  .cmds { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:10px; align-items:start; }
+  .cmd { border:1px solid var(--line); border-radius:8px; background:var(--card); padding:10px 12px; }
+  .cmd h2 { font-size:15px; margin:0; } .cmd p { margin:2px 0 8px; color:var(--muted); }
+  .cmd form { display:flex; gap:6px; }
+  .cmd input { flex:1; min-width:0; padding:5px 8px; border:1px solid var(--line); border-radius:6px;
+               background:var(--bg); color:var(--fg); font:inherit; }
+  .cmd button { border:1px solid var(--accent); background:var(--accent); color:var(--bg); border-radius:6px;
+                padding:5px 12px; cursor:pointer; font:inherit; }
+  .cmd pre { margin:8px 0 0; padding:8px; max-height:300px; overflow:auto; white-space:pre-wrap; word-break:break-word;
+             background:var(--bg); border-radius:6px; font:12px/1.4 ui-monospace, Consolas, monospace; }
   .empty { padding:24px; text-align:center; color:var(--muted); }
 </style>
 </head>
 <body>
 <main>
-  <h1>Hook logs</h1>
+  <h1>Hooks</h1>
+  <div class="tabs"><button id="t-home">Home</button><button id="t-logs">Logs</button></div>
+  <section id="home" class="cmds"></section>
+  <section id="logs" hidden>
   <nav id="tabs"></nav>
   <div class="bar">
     <input id="filter" type="search" placeholder="Filter rows (any text)">
@@ -45,6 +63,7 @@
   </div>
   <div class="wrap"><table><thead id="head"></thead><tbody id="body"></tbody></table>
     <div id="empty" class="empty" hidden>No rows.</div></div>
+  </section>
 </main>
 <script>
 const $ = (id) => document.getElementById(id);
@@ -123,6 +142,47 @@ function schedule() {
 $("filter").oninput = refreshRows;
 $("prompts").onchange = refreshRows;
 $("live").onchange = schedule;
+
+async function buildHome() {
+  for (const c of await getJson("/api/commands")) {
+    const box = document.createElement("div");
+    box.className = "cmd";
+    const h = document.createElement("h2"); h.textContent = c.name;
+    const p = document.createElement("p"); p.textContent = c.purpose;
+    const form = document.createElement("form");
+    const input = document.createElement("input");
+    input.placeholder = c.usage;
+    input.setAttribute("aria-label", "arguments for " + c.name);
+    const go = document.createElement("button"); go.textContent = "Run";
+    const out = document.createElement("pre"); out.hidden = true;
+    form.append(input, go);
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      go.disabled = true; out.hidden = false; out.textContent = "running...";
+      try {
+        const r = await fetch("/api/run", { method: "POST", headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify({ name: c.name, args: input.value }) });
+        const j = await r.json();
+        out.textContent = j.error ? j.error : (j.output.trim() || "(no output)") + (j.code ? "\n[exit " + j.code + "]" : "");
+      } catch (err) { out.textContent = "server not reachable"; }
+      go.disabled = false;
+    };
+    box.append(h, p, form, out);
+    $("home").append(box);
+  }
+}
+
+function page(name) {
+  $("home").hidden = name !== "home";
+  $("logs").hidden = name !== "logs";
+  $("t-home").setAttribute("aria-pressed", name === "home");
+  $("t-logs").setAttribute("aria-pressed", name === "logs");
+  store("page", name);
+}
+$("t-home").onclick = () => page("home");
+$("t-logs").onclick = () => page("logs");
+page(load("page") === "logs" ? "logs" : "home");
+buildHome().catch(() => { $("home").textContent = "server not reachable"; });
 
 (async () => {
   try {

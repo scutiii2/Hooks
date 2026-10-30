@@ -1,4 +1,4 @@
-"""Local web view of the hook logs (.data/<hook>/*.jsonl), refreshed live.
+"""Local web page. Home runs the run.bat commands; Logs shows .data/<hook>/*.jsonl, refreshed live.
 
     python -m core.py.tools.web [--port 8765]
 
@@ -8,19 +8,24 @@ Decision records get the same followed / pending / ignored? status as the termin
 import json
 import os
 import re
+import shlex
+import subprocess
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from ..paths import DATA
+from ..paths import DATA, ROOT
 from ..training_log import followed_log
+from .cli import COMMANDS, resolve as resolve_command
 from .watch_decisions import IGNORE_AFTER_SECONDS, matching_decision
 
 PAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web.html")
 NAME = re.compile(r"[\w-]+")
 CHUNK = 512 * 1024  # a poll reads only this much from the end of a log
 MAX_ROWS = 500
+NOT_HERE = {"web", "watch", "label"}  # this server, a live terminal view, an interactive review
+RUN_TIMEOUT = 120
 HOSTS = ("127.0.0.1", "localhost")  # refuse other Host headers: a rebinding page must not read the logs
 
 
@@ -92,6 +97,27 @@ def read_log(file: str, rows: int, prompts: bool) -> list[dict] | None:
     return records
 
 
+def list_commands() -> list[dict]:
+    return [{"name": n, "usage": u, "purpose": p} for n, (_, u, p) in COMMANDS.items() if n not in NOT_HERE]
+
+
+def run_command(name: str, args: str) -> dict | None:
+    """Run a run.bat command and return its output; None for a name that is not offered here."""
+    if name not in COMMANDS or name in NOT_HERE:
+        return None
+    try:
+        # posix=False keeps Windows backslashes, but also the quote marks: drop one matching pair per word.
+        words = [w[1:-1] if len(w) > 1 and w[0] == w[-1] and w[0] in "\"'" else w for w in shlex.split(args, posix=False)]
+        argv = resolve_command([name, *words])
+        done = subprocess.run([sys.executable, *argv], cwd=ROOT, stdin=subprocess.DEVNULL, capture_output=True,
+                              text=True, encoding="utf-8", errors="replace", timeout=RUN_TIMEOUT)
+    except ValueError as e:
+        return {"code": 2, "output": f"bad arguments: {e}"}
+    except subprocess.TimeoutExpired:
+        return {"code": 124, "output": f"timed out after {RUN_TIMEOUT}s"}
+    return {"code": done.returncode, "output": done.stdout + done.stderr}
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
@@ -107,14 +133,34 @@ class Handler(BaseHTTPRequestHandler):
     def _json(self, status: int, value):
         self._send(status, json.dumps(value).encode(), "application/json")
 
+    def _host_ok(self) -> bool:
+        return self.headers.get("Host", "").rsplit(":", 1)[0] in HOSTS
+
+    def do_POST(self):
+        # A JSON content type forces a CORS preflight this server never grants, so other sites cannot run commands.
+        if not self._host_ok() or self.headers.get("Content-Type") != "application/json":
+            return self._json(403, {"error": "forbidden"})
+        if urlparse(self.path).path != "/api/run":
+            return self._json(404, {"error": "not found"})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length", 0)), 4096)))
+            result = run_command(str(body["name"]), str(body.get("args", "")))
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "need {name, args}"})
+        if result is None:
+            return self._json(404, {"error": "no such command"})
+        self._json(200, result)
+
     def do_GET(self):
-        if self.headers.get("Host", "").rsplit(":", 1)[0] not in HOSTS:
+        if not self._host_ok():
             return self._json(403, {"error": "forbidden host"})
         url = urlparse(self.path)
         query = parse_qs(url.query)
         if url.path == "/":
             with open(PAGE, "rb") as f:
                 return self._send(200, f.read(), "text/html; charset=utf-8")
+        if url.path == "/api/commands":
+            return self._json(200, list_commands())
         if url.path == "/api/logs":
             return self._json(200, list_logs())
         if url.path == "/api/tail":
