@@ -88,6 +88,14 @@ Both decision logs include `session_id`. The PostToolUse hook records only the s
 
 With the followed hook installed and `followed.jsonl` present, a live `use` decision with no matching action after 90 seconds prints a red `ignored?` hint once. The question mark matters: Claude may legitimately answer directly for a short reply that needs conversation context, and a skill suggestion is a hint, not a command.
 
+## Web view of the logs
+
+```bat
+run.bat core.py.tools.web
+```
+
+Opens nothing by itself; browse to `http://127.0.0.1:8765/` (`--port N` changes it). One tab per log under `.data/` (`runs.jsonl`, `decisions.jsonl`, `failures.jsonl`, `followed.jsonl`), newest row first, refreshed every 2 seconds, with a text filter. Decision rows get the watcher's `followed` / `pending` / `ignored?` status. The server listens on 127.0.0.1 only and rejects other Host headers. Prompt text is hidden until you tick "show prompts". It is read-only.
+
 ## Project layout
 
 ```
@@ -99,7 +107,7 @@ core/                   # shared code, one folder per language; both write the s
 │   ├── training_log.py, runlog.py    # append-only JSONL logs (rotated at 10 MB); one runs.jsonl line per hook run
 │   ├── hook_io.py, privacy.py        # payload in, tag out, skip rules
 │   ├── toggle_cli.py, run_hook.py    # shared toggle CLI; runs a hook from any working folder
-│   └── tools/                        # manage_hooks, watch_decisions (monitor.bat), calibrate, label_review, export_training_data, log_followed
+│   └── tools/                        # manage_hooks, watch_decisions (monitor.bat), web (+ web.html), calibrate, label_review, export_training_data, log_followed
 └── js/                 # for the Node hooks: paths.js, log.js, runlog.js (same data folders and log format as py; tests/test_js_core.py checks the log agrees)
 hooks/
 ├── model_router/       # size classifier: hook, state, toggle, config.json

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hook Logs</title>
+<style>
+  :root { --bg:#fafaf8; --fg:#1d1d1b; --muted:#6b6b66; --line:#deded8; --card:#fff; --accent:#2a5bd7;
+          --ok:#1a7f37; --warn:#9a6700; --bad:#cf222e; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#16161a; --fg:#e6e6e3; --muted:#9a9a94; --line:#2c2c33; --card:#1e1e24;
+          --accent:#7aa2ff; --ok:#3fb950; --warn:#d29922; --bad:#ff7b72; } }
+  :root[data-theme="dark"] { --bg:#16161a; --fg:#e6e6e3; --muted:#9a9a94; --line:#2c2c33; --card:#1e1e24;
+          --accent:#7aa2ff; --ok:#3fb950; --warn:#d29922; --bad:#ff7b72; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, sans-serif; }
+  main { max-width:1200px; margin:0 auto; padding:16px; }
+  h1 { font-size:18px; margin:0 0 12px; }
+  nav { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+  nav button { border:1px solid var(--line); background:var(--card); color:var(--fg); padding:5px 10px;
+               border-radius:6px; cursor:pointer; font:inherit; }
+  nav button[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); font-weight:600; }
+  .bar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:10px; color:var(--muted); }
+  .bar input[type=search] { flex:1; min-width:160px; padding:5px 8px; border:1px solid var(--line);
+               border-radius:6px; background:var(--card); color:var(--fg); font:inherit; }
+  .wrap { overflow-x:auto; border:1px solid var(--line); border-radius:8px; background:var(--card); }
+  table { border-collapse:collapse; width:100%; }
+  th, td { text-align:left; padding:5px 10px; border-bottom:1px solid var(--line); white-space:nowrap;
+           max-width:420px; overflow:hidden; text-overflow:ellipsis; }
+  th { position:sticky; top:0; background:var(--card); color:var(--muted); font-weight:600; }
+  td.time, td.num { font-variant-numeric: tabular-nums; }
+  .ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); }
+  .empty { padding:24px; text-align:center; color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Hook logs</h1>
+  <nav id="tabs"></nav>
+  <div class="bar">
+    <input id="filter" type="search" placeholder="Filter rows (any text)">
+    <label><input id="prompts" type="checkbox"> show prompts</label>
+    <label><input id="live" type="checkbox" checked> live</label>
+    <span id="info"></span>
+  </div>
+  <div class="wrap"><table><thead id="head"></thead><tbody id="body"></tbody></table>
+    <div id="empty" class="empty" hidden>No rows.</div></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const GOOD = new Set(["use", "followed", "injected", "output", "wrapped", "notes", "applied"]);
+const WARN = new Set(["fallback", "skipped", "unprompted", "pending", "disabled", "nothing", "no_patch"]);
+const BAD = new Set(["failed", "error", "ignored?"]);
+const HIDDEN = new Set(["timestamp"]);
+let current = null, logs = [], timer = null;
+
+function cls(key, value) {
+  if (!["outcome", "decision", "status"].includes(key)) return "";
+  return GOOD.has(value) ? "ok" : WARN.has(value) ? "warn" : BAD.has(value) ? "bad" : "";
+}
+function show(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+function store(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
+function load(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+
+async function getJson(url) {
+  const r = await fetch(url, { cache: "no-store" });
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+async function refreshTabs() {
+  logs = await getJson("/api/logs");
+  const tabs = $("tabs");
+  tabs.replaceChildren();
+  for (const { file } of logs) {
+    const b = document.createElement("button");
+    b.textContent = file.replace(".jsonl", "");
+    b.setAttribute("aria-pressed", file === current);
+    b.onclick = () => { current = file; store("log", file); refreshTabs().then(refreshRows); };
+    tabs.append(b);
+  }
+}
+
+async function refreshRows() {
+  if (!current) return;
+  let records;
+  try {
+    records = await getJson(`/api/tail?file=${encodeURIComponent(current)}&rows=200&prompts=${$("prompts").checked ? 1 : 0}`);
+  } catch (e) { $("info").textContent = "server not reachable"; return; }
+  const needle = $("filter").value.toLowerCase();
+  const rows = records.filter((r) => !needle || JSON.stringify(r).toLowerCase().includes(needle)).reverse();
+  const cols = ["time"];
+  for (const r of records) for (const k of Object.keys(r)) if (!HIDDEN.has(k) && !cols.includes(k)) cols.push(k);
+  $("head").replaceChildren(Object.assign(document.createElement("tr"), {}));
+  for (const c of cols) { const th = document.createElement("th"); th.textContent = c; $("head").firstChild.append(th); }
+  const body = $("body");
+  body.replaceChildren();
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+    for (const c of cols) {
+      const td = document.createElement("td");
+      const v = c === "time" ? new Date(r.timestamp * 1000).toLocaleTimeString() : r[c];
+      td.textContent = show(v);
+      td.title = td.textContent;
+      td.className = (c === "time" ? "time " : typeof v === "number" ? "num " : "") + cls(c, v);
+      tr.append(td);
+    }
+    body.append(tr);
+  }
+  $("empty").hidden = rows.length > 0;
+  $("info").textContent = `${rows.length} of ${records.length} rows, ${new Date().toLocaleTimeString()}`;
+}
+
+function schedule() {
+  clearInterval(timer);
+  if ($("live").checked) timer = setInterval(refreshRows, 2000);
+}
+
+$("filter").oninput = refreshRows;
+$("prompts").onchange = refreshRows;
+$("live").onchange = schedule;
+
+(async () => {
+  try {
+    await refreshTabs();
+    const saved = load("log");
+    current = logs.some((l) => l.file === saved) ? saved : (logs[0] || {}).file;
+    await refreshTabs();
+    await refreshRows();
+    schedule();
+  } catch (e) { $("info").textContent = "server not reachable"; }
+})();
+</script>
+</body>
+</html>
