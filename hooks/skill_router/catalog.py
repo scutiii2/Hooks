@@ -11,6 +11,7 @@ import os
 from .builtins import BUILTINS
 
 HOME = os.path.join(os.path.expanduser("~"), ".claude")
+CODEX_HOME = os.environ.get("CODEX_HOME", os.path.join(os.path.expanduser("~"), ".codex"))
 MAX_DESCRIPTION = 160
 
 
@@ -63,17 +64,32 @@ def skills_in(skills_dir: str, prefix: str = "") -> dict[str, str]:
     return found
 
 
-def load_skills() -> list[tuple[str, str]]:
+def _skills_up_the_tree(subpath: str) -> dict[str, str]:
+    """Skills in `<folder>/<subpath>` for the working folder and every parent."""
+    found, folder = {}, os.getcwd()
+    while True:
+        found.update(skills_in(os.path.join(folder, subpath)))
+        parent = os.path.dirname(folder)
+        if parent == folder:
+            return found
+        folder = parent
+
+
+def load_skills(host: str = "claude") -> list[tuple[str, str]]:
+    """The catalog for Claude Code (default) or Codex. Codex has no built-ins to list; it reads
+    `.agents/skills` (project and ~/.agents) and the skills of its installed plugins."""
+    if host == "codex":
+        found = {}
+        for skills_dir in glob.glob(os.path.join(CODEX_HOME, "plugins", "cache", "*", "*", "*", "skills")):
+            found.update(skills_in(skills_dir))
+        found.update(skills_in(os.path.join(os.path.expanduser("~"), ".agents", "skills")))
+        found.update(_skills_up_the_tree(os.path.join(".agents", "skills")))
+        return list(found.items())
     found = dict(BUILTINS)
     for name, path in installed_plugins().items():
         found.update(skills_in(os.path.join(path, "skills"), f"{name}:"))
-    folder = os.getcwd()
-    while True:
-        found.update(skills_in(os.path.join(folder, ".claude", "skills")))
-        parent = os.path.dirname(folder)
-        if parent == folder:
-            return list(found.items())
-        folder = parent
+    found.update(_skills_up_the_tree(os.path.join(".claude", "skills")))
+    return list(found.items())
 
 
 SKILLS = load_skills()

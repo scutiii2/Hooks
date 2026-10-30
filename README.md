@@ -88,6 +88,30 @@ Both decision logs include `session_id`. The PostToolUse hook records only the s
 
 With the followed hook installed and `followed.jsonl` present, a live `use` decision with no matching action after 90 seconds prints a red `ignored?` hint once. The question mark matters: Claude may legitimately answer directly for a short reply that needs conversation context, and a skill suggestion is a hint, not a command.
 
+## Codex
+
+The hooks also run under Codex. Claude Code stays the default; Codex gets its own install target:
+
+```bat
+.venv\Scripts\python.exe -m core.py.tools.manage_hooks add --host codex
+```
+
+This adds the hooks below to `~/.codex/hooks.json` (`--host codex remove` takes them out again; other hooks in the file are kept). **Codex runs a hook only after you trust it**: open Codex and review the new hooks with `/hooks`. Installing changes your Codex config, so you run it yourself, as with Claude.
+
+| Hook | On Codex |
+|---|---|
+| `coding_rules` | yes: SessionStart |
+| `source_of_truth` | yes: SessionStart, and after `apply_patch` / Bash |
+| `token_economizer_patch` | yes: SessionStart (it already patched both hosts) |
+| `skill_router` | yes: `--host codex`. Its catalog is `.agents/skills` (project and `~/.agents`) plus the skills of Codex plugins. The tag tells Codex to use `$skill`, so no global protocol file is needed |
+| `model_router` | no: it works by dispatching to `router-haiku` / `router-sonnet` subagents through Claude's Agent tool. Codex subagent model selection is not documented where I could read it |
+| `noise_filter` | no: Codex accepts `updatedInput` only together with `permissionDecision: "allow"` (on Claude that would skip the permission prompt), and the rewrite is a bash command line, while the shell Codex uses on Windows is not documented |
+| followed-tracking | no: Codex has no Skill or Agent tool call to match, so Codex decisions are logged with `host: codex` and left out of `followed` / `ignored?` and `calibrate` |
+
+The command strings were checked to run in bash, cmd and PowerShell, and the stdin and stdout fields follow Codex's hook documentation (`prompt`, `tool_name`, `hookSpecificOutput.additionalContext`). Not checked: a live Codex session running them, because that needs the hooks trusted first.
+
+If `~/.codex/hooks.json` already has hooks from before the restructure (an entry for `TokenEconomizerPatch/te_patch.py`, or a copy of `noise-filter-pretooluse.js` under `~/.codex/hooks/`), they are not touched. The first points at a path that no longer exists, so remove it in `/hooks`.
+
 ## Web interface
 
 ```bat

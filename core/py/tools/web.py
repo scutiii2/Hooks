@@ -71,7 +71,8 @@ def add_status(records: list[dict], file: str):
     if not file.endswith("decisions.jsonl") or not os.path.exists(followed_log.path):
         return
     router = "SKILL" if file.startswith("skill_router") else "MODEL"
-    used = [{**r, "router": router} for r in records if r.get("decision") == "use" and r.get("session_id")]
+    used = [{**r, "router": router} for r in records if r.get("decision") == "use" and r.get("session_id")
+            and r.get("host") != "codex"]  # Codex has no Skill/Agent tool call to match
     pending, followed = list(used), set()
     for action in sorted(tail(followed_log.path, MAX_ROWS), key=lambda a: a["timestamp"]):
         match = matching_decision(action, pending)
@@ -80,7 +81,7 @@ def add_status(records: list[dict], file: str):
             followed.add(match["timestamp"])
     now = time.time()
     for r in records:
-        if r.get("decision") == "use" and r.get("session_id"):
+        if r.get("decision") == "use" and r.get("session_id") and r.get("host") != "codex":
             r["status"] = ("followed" if r["timestamp"] in followed
                            else "pending" if now - r["timestamp"] < IGNORE_AFTER_SECONDS else "ignored?")
 

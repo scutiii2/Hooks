@@ -86,7 +86,8 @@ class PendingDecisions:
         self.decisions = []
 
     def add(self, decision: dict):
-        if decision.get("session_id") and decision.get("decision") == "use":
+        # Codex has no Skill/Agent tool call to follow, so its suggestions can never be matched.
+        if decision.get("session_id") and decision.get("decision") == "use" and decision.get("host") != "codex":
             self.decisions.append(decision)
 
     def resolve(self, action: dict):

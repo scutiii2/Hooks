@@ -24,7 +24,7 @@ COMMANDS = {
     "calibrate": (["-m", "core.py.tools.calibrate"], "[--since EPOCH]", "follow rate per confidence bucket"),
     "label": (["-m", "core.py.tools.label_review"], "model|skill", "review and correct logged predictions"),
     "export": (["-m", "core.py.tools.export_training_data"], "model|skill", "labeled data to training JSONL"),
-    "settings": (["-m", "core.py.tools.manage_hooks"], "add|remove [settings.json]", "install or remove hooks in Claude settings"),
+    "settings": (["-m", "core.py.tools.manage_hooks"], "add|remove [--host claude|codex] [file]", "install or remove hooks in Claude settings or Codex hooks.json"),
 }
 
 

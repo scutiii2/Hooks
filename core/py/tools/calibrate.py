@@ -23,7 +23,8 @@ def load(log_path: str, router: str) -> list[dict]:
 
 def report(router: str, decisions: list[dict], actions: list[dict], since: float):
     used = [d for d in decisions
-            if d.get("decision") == "use" and d.get("session_id") and d["timestamp"] > since]
+            if d.get("decision") == "use" and d.get("session_id") and d.get("host") != "codex"
+            and d["timestamp"] > since]
     print(f"\n{router}: {len(used)} use decisions with a session")
     for low, high in BUCKETS:
         rows = [d for d in used if low <= d["confidence"] <= high]

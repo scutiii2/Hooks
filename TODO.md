@@ -1,4 +1,5 @@
 # Hooks TODO
 
 - [x] **Per-hook logs and audits.** Every hook records when and how it was triggered (event, working folder, outcome, duration), one line per run in `.data/<hook>/runs.jsonl`, via `core/js/runlog.js` and `core/py/runlog.py` (done 2026-10-30). The prompt text is never in it.
+- [ ] **Codex.** Hooks install for Codex with `manage_hooks add --host codex` (done 2026-10-30); still open: trust them in Codex and watch a real session, then decide on `model_router` (needs a verified way to pick a subagent model in Codex) and `noise_filter` (needs Codex's shell and `permissionDecision`).
 - [x] Restructure `AI/Hooks` into one repo: `core/py/`, `core/js/`, `hooks/<name>/`, `.data/`, `.memory/`, `.cache/`, `run.bat`, `monitor.bat` (done 2026-10-30).
