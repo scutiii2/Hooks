@@ -96,7 +96,7 @@ core/                   # shared code, one folder per language; both write the s
 │   ├── classifiers.py, provider.py   # the classifier (Jev) and its threshold
 │   ├── config.py, env_load.py        # hooks/<hook>/config.json and layered .env
 │   ├── paths.py, json_store.py       # folders under the root, JSON state/stats base
-│   ├── training_log.py               # append-only JSONL logs (rotated at 10 MB)
+│   ├── training_log.py, runlog.py    # append-only JSONL logs (rotated at 10 MB); one runs.jsonl line per hook run
 │   ├── hook_io.py, privacy.py        # payload in, tag out, skip rules
 │   ├── toggle_cli.py, run_hook.py    # shared toggle CLI; runs a hook from any working folder
 │   └── tools/                        # manage_hooks, watch_decisions (monitor.bat), calibrate, label_review, export_training_data, log_followed
@@ -120,7 +120,7 @@ CLAUDE.md, AGENTS.md    # agent instructions (CLAUDE.md adds the router protocol
 
 | Folder | Holds |
 |---|---|
-| `.data/<hook>/` | what a hook creates: `state.json`, `stats.json`, `decisions.jsonl`; `.data/core/` has the shared `followed.jsonl` and `failures.jsonl` |
+| `.data/<hook>/` | what a hook creates: `state.json`, `stats.json`, `decisions.jsonl`, `runs.jsonl` (every run: event, folder, outcome, duration; no prompt text); `.data/core/` has the shared `followed.jsonl` and `failures.jsonl` |
 | `.memory/` | what improves a hook: `core/labeled.jsonl`, the reviewed examples (`label_review`) |
 | `.venv/` | the Python environment the hooks run with |
 

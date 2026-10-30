@@ -235,10 +235,22 @@ def _needs_install() -> bool:
     return any(h.enabled() and not h.installed() for h in HOSTS)
 
 
+def log_run(started: float, record: dict) -> None:
+    """Run log in .data/token_economizer_patch/runs.jsonl; this file runs by path, so find core/ first."""
+    try:
+        sys.path.insert(0, str(HERE.parents[1]))
+        from core.py.runlog import log_run as write
+        write("token_economizer_patch", {"event": "SessionStart", **record}, started)
+    except Exception:
+        pass
+
+
 def hook() -> int:
     """SessionStart: patch inline; run a missing install detached, since it is slow."""
+    started, record = time.time(), {"outcome": "error"}
     try:
         if not patches():
+            record = {"outcome": "no_patch"}
             return 0
         notes = []
         if _needs_install():
@@ -250,11 +262,14 @@ def hook() -> int:
                                  stderr=subprocess.DEVNULL, creationflags=flags)
                 notes.append("TokenEconomizer is missing on a host; installing it in the background.")
         notes += ensure([h for h in HOSTS if h.installed()])
+        record = {"outcome": "notes" if notes else "nothing", "notes": len(notes)}
         if notes:
             print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart",
                                                      "additionalContext": " ".join(notes)}}))
     except Exception:
         pass
+    finally:
+        log_run(started, record)
     return 0
 
 

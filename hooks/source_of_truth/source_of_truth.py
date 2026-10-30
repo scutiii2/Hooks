@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 # shortcut: one watched root (Programming/), not configurable; add a config file when a second root appears.
@@ -114,15 +115,29 @@ def run(cwd: Path, event: str, roots: list[Path] = ROOTS) -> dict | None:
     return {"hookSpecificOutput": {"hookEventName": event, "additionalContext": "\n".join(lines)}}
 
 
+def log_run(started: float, record: dict) -> None:
+    """Run log in .data/source_of_truth/runs.jsonl; this file runs by path, so find core/ first."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from core.py.runlog import log_run as write
+        write("source_of_truth", record, started)
+    except Exception:  # noqa: BLE001 - the log must never block the hook
+        pass
+
+
 def main() -> int:
+    started, record = time.time(), {"outcome": "error"}
     try:
         data = {} if sys.stdin.isatty() else json.load(sys.stdin)
         cwd = Path(sys.argv[1] if len(sys.argv) > 1 else data.get("cwd") or os.getcwd())
-        output = run(cwd, data.get("hook_event_name") or "SessionStart")
+        event = data.get("hook_event_name") or "SessionStart"
+        output = run(cwd, event)
+        record = {"event": event, "outcome": "output" if output else "nothing"}
         if output:
             print(json.dumps(output))
     except Exception:  # noqa: BLE001 - a hook must never block the session
         pass
+    log_run(started, record)
     return 0
 
 
