@@ -1,5 +1,6 @@
 """Run 10 sample messages through Jev directly and print a results table."""
 from core.py.classifiers import JevClassifier, ClassifierError
+from core.py.env_load import load_env
 from core.py.tools.watch_decisions import DISPATCH
 
 SAMPLES = [
@@ -16,6 +17,7 @@ SAMPLES = [
 ]
 
 def main():
+    load_env()
     classifier = JevClassifier()
     rows = []
     for expected_hint, message in SAMPLES:

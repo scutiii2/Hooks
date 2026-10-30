@@ -122,7 +122,6 @@ CLAUDE.md, AGENTS.md    # agent instructions (CLAUDE.md adds the router protocol
 |---|---|
 | `.data/<hook>/` | what a hook creates: `state.json`, `stats.json`, `decisions.jsonl`; `.data/core/` has the shared `followed.jsonl` and `failures.jsonl` |
 | `.memory/` | what improves a hook: `core/labeled.jsonl`, the reviewed examples (`label_review`) |
-| `.cache/` | disposable cache (nothing writes there yet) |
 | `.venv/` | the Python environment the hooks run with |
 
 ### Config and env

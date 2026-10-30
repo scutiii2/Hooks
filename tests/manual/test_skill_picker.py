@@ -1,6 +1,7 @@
 """Run 10 real requests through the skill picker, flag misses vs expected."""
 from hooks.skill_router import picker as skill_picker
 from core.py.classifiers import ClassifierError
+from core.py.env_load import load_env
 
 # (request, expected skill or None if no skill should fire)
 SAMPLES = [
@@ -18,6 +19,7 @@ SAMPLES = [
 
 
 def main():
+    load_env("skill_router")
     rows = []
     misses = []
     for request, expected in SAMPLES:
