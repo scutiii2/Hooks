@@ -29,8 +29,10 @@ CODEX_TARGET = os.path.join(os.environ.get("CODEX_HOME", os.path.join(os.path.ex
 # foot-gun. Exec form sidesteps the mismatch entirely: no shell is invoked.
 # Windows: pythonw.exe, not python.exe, since a console build opens a terminal window on every hook run.
 PYTHON_EXE = f"{ROOT}/.venv/Scripts/pythonw.exe" if os.name == "nt" else f"{ROOT}/.venv/bin/python"
-# Codex has no `args` array, only a command string, so it gets the console build: stdout is certain to be captured.
+# Codex has no `args` array, only a command string. Its child is the console build (stdout is certain to be
+# captured), started through run_hidden.py under pythonw.exe so no terminal window flashes.
 CODEX_PYTHON = f"{ROOT}/.venv/Scripts/python.exe" if os.name == "nt" else PYTHON_EXE
+HIDE = [PYTHON_EXE, f"{ROOT}/core/py/run_hidden.py"] if os.name == "nt" else []
 
 # run_hook.py puts the project root on the path, so the hooks work from any working folder.
 RUN_HOOK = f"{ROOT}/core/py/run_hook.py"
@@ -42,7 +44,7 @@ def _claude(args: list[str], timeout: int) -> dict:
 
 def _codex(*words: str, timeout: int, status: str = "") -> dict:
     """One command string; paths here use `/` and no spaces, so nothing needs shell quoting."""
-    handler = {"type": "command", "command": subprocess.list2cmdline(list(words)), "timeout": timeout}
+    handler = {"type": "command", "command": subprocess.list2cmdline([*HIDE, *words]), "timeout": timeout}
     return {**handler, "statusMessage": status} if status else handler
 
 
