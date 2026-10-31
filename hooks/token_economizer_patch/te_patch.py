@@ -37,9 +37,12 @@ CODEX = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
 CLONE = CLAUDE / "plugins" / "marketplaces" / "tokeneconomizer"
 
 
+NO_WINDOW = 0x08000000 if os.name == "nt" else 0  # under pythonw a console child (git) would open a terminal window
+
+
 def run(*cmd: str, cwd: Path | None = None, timeout: int = 300) -> bool:
     try:
-        return subprocess.run(cmd, cwd=cwd, capture_output=True, timeout=timeout).returncode == 0
+        return subprocess.run(cmd, cwd=cwd, capture_output=True, timeout=timeout, creationflags=NO_WINDOW).returncode == 0
     except (OSError, subprocess.SubprocessError):
         return False
 
@@ -220,7 +223,7 @@ def ensure(hosts=HOSTS) -> list[str]:
 def refresh() -> None:
     """Rebuild the patch from the clone's working-tree changes (new files included)."""
     def git(*a: str) -> bytes:
-        return subprocess.run(["git", *a], cwd=CLONE, capture_output=True, check=True).stdout
+        return subprocess.run(["git", *a], cwd=CLONE, capture_output=True, check=True, creationflags=NO_WINDOW).stdout
     new = [f for f in git("ls-files", "--others", "--exclude-standard", "tokeneconomizer").decode().split("\n") if f]
     if new:
         git("add", "-N", *new)
