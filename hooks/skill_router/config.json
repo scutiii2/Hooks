@@ -2,5 +2,11 @@
   "confidence_threshold": {
     "jev": 60
   },
-  "skill_picker_batch_size": 20
+  "skill_picker_batch_size": 20,
+  "skill_min_confidence": {
+    "loop": 85,
+    "run": 85,
+    "update-config": 85,
+    "superpowers:finishing-a-development-branch": 85
+  }
 }

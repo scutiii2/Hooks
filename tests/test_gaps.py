@@ -26,6 +26,35 @@ def test_picker_threshold_and_none():
             assert p.choose("x")["decision"] == want
 
 
+def test_picker_per_skill_floor_and_twins():
+    from hooks.skill_router.picker import SkillPicker
+    from hooks.skill_router import picker as pm
+    p = SkillPicker(skills=[("loop", "d"), ("a:tdd", "d"), ("tdd", "d")])
+    assert [n for n, _ in p.skills] == ["loop", "a:tdd"]
+    for skill, conf, want in [("loop", 80, "fallback"), ("loop", 85, "use"), ("a:tdd", 60, "use")]:
+        with patch.object(pm._provider, "pick_skill",
+                          return_value={"skill": skill, "confidence": conf, "provider": "jev"}), \
+             patch.object(pm._config, "get_skill_min_confidence", return_value={"loop": 85}):
+            assert p.choose("x")["decision"] == want
+
+
+def test_jev_payload_survives_lone_surrogate():
+    import json
+    from unittest.mock import MagicMock
+    from core.py import classifiers
+    sent = {}
+
+    def fake_open(req, timeout):
+        sent["body"] = req.data
+        raise classifiers.ClassifierError("stop")
+    with patch.dict("os.environ", {"TYPESAFE_API_KEY": "k"}), \
+         patch.object(classifiers.urllib.request, "urlopen", fake_open):
+        with pytest.raises(classifiers.ClassifierError):
+            classifiers.JevClassifier().ask_choice("bad \ud800 text", {"a": "x"}, 1)
+    assert "\\ud800" not in sent["body"].decode()
+    assert json.loads(sent["body"])["state"] == "bad ? text"
+
+
 @pytest.mark.parametrize("module", ["hooks.skill_router.hook"])
 def test_hooks_fail_open_on_bad_stdin(module):
     import importlib

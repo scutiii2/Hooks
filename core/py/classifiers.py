@@ -56,7 +56,8 @@ class JevClassifier(Classifier):
             raise ClassifierError(f"{self.KEY_ENV} not set")
 
         payload = {
-            "state": subject,
+            # a lone surrogate (from a bad paste) serializes to an escape Jev rejects as invalid Unicode
+            "state": subject.encode("utf-8", "replace").decode("utf-8"),
             "model": self.MODEL_ID,
             "questions": {self.QUESTION_ID: choice_question(criteria)},
         }

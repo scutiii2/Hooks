@@ -10,6 +10,12 @@ from core.py.classifiers import ClassifierError
 from .catalog import SKILLS
 
 
+def _without_bare_twins(skills):
+    """Drop `name` when `plugin:name` is also listed: twins split the confidence between them."""
+    namespaced = {n.rsplit(":", 1)[1] for n, _ in skills if ":" in n}
+    return [(n, d) for n, d in skills if ":" in n or n not in namespaced]
+
+
 class SkillPicker:
     """Batches the skill catalog if needed, runs a final round among
     batch winners, and applies the confidence threshold.
@@ -31,7 +37,7 @@ class SkillPicker:
     """
 
     def __init__(self, skills=None, batch_size=None, threshold=None):
-        self.skills = skills if skills is not None else SKILLS
+        self.skills = _without_bare_twins(skills if skills is not None else SKILLS)
         self.batch_size = batch_size
         self.threshold = threshold
 
@@ -85,7 +91,11 @@ class SkillPicker:
             return {"decision": "fallback", "skill": None, "confidence": 0,
                     "provider": None, "error": str(e)}
 
-        threshold = self.threshold if self.threshold is not None else _provider.get_threshold("skill_router")
+        if self.threshold is not None:
+            threshold = self.threshold
+        else:
+            threshold = max(_provider.get_threshold("skill_router"),
+                            _config.get_skill_min_confidence().get(result["skill"], 0))
         decision = "use" if (result["skill"] != "none"
                               and result["confidence"] >= threshold) else "fallback"
         return {"decision": decision, "skill": result["skill"],

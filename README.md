@@ -45,7 +45,8 @@ Each router has its own `config.json` (shown merged here; the batch size only ma
 ```json
 {
   "confidence_threshold": { "jev": 60 },
-  "skill_picker_batch_size": 20
+  "skill_picker_batch_size": 20,
+  "skill_min_confidence": { "loop": 85 }
 }
 ```
 
@@ -53,6 +54,7 @@ Each router has its own `config.json` (shown merged here; the batch size only ma
 |---|---|
 | `confidence_threshold` | Cutoff a classification must clear before it's trusted enough to act on (`decision=use`). Below it, the router's pick is ignored and things proceed normally. This is a safety gate, not an accuracy knob — raising it reduces wrong dispatches at the cost of also losing some correct ones. |
 | `skill_picker_batch_size` | Skill catalogs larger than this get split into batches, each judged separately, with a final round among batch winners. Batching has a real trade-off (see `hooks/skill_router/picker.py` for the tested reasoning) — don't lower it casually. |
+| `skill_min_confidence` | Per-skill floor above the global threshold, for skills that over-trigger (suggested often, rarely followed). A skill named here needs at least that confidence. |
 
 These live in `hooks/skill_router/config.json`. Anything set in `.env` (`CONFIDENCE_THRESHOLD`, `SKILL_PICKER_BATCH_SIZE`) overrides them, for quick one-off testing; see "Config and env" below.
 
