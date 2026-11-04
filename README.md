@@ -135,6 +135,7 @@ hooks/
 ├── coding_rules/       # SessionStart: injects my global coding rules (node)
 ├── noise_filter/       # PreToolUse(Bash): trims noisy command output (node)
 ├── source_of_truth/    # keeps AGENTS.md as the single source for CLAUDE.md and skills
+├── hide_plugin_windows/   # SessionStart: wraps plugin hooks so they open no terminal window (Windows)
 └── token_economizer_patch/   # reapplies my patch on TokenEconomizer after updates
 tests/                  # offline tests (`python -m pytest tests`); tests/manual/ holds real-classifier scripts (run with python -m tests.manual.<name>). The last two hooks keep their tests beside them.
 web.bat                 # web interface on 127.0.0.1, opens the browser: Home (CLI commands) and Logs
