@@ -107,10 +107,10 @@ If `~/.codex/hooks.json` already has hooks from before the restructure (an entry
 ## Web interface
 
 ```bat
-web.bat                  # starts the web page and opens it in your browser
+run.bat web              # starts the web page and opens it in your browser
 ```
 
-`web.bat` opens `http://127.0.0.1:8765/` (`--port N` changes it). Two pages:
+`run.bat web` opens `http://127.0.0.1:8765/` (`--port N` changes it). Two pages:
 
 - **Home**: the commands the CLI offers (`skill_router`, `skill_pick`, `te_patch`, `source_of_truth`, `calibrate`, `export`, `settings`), each with an arguments box and a Run button; the output shows under the card. A command stops after 120 seconds and gets no keyboard input. `web` (this server), `watch` (live terminal view) and `label` (interactive review) run from the terminal with the CLI.
 - **Logs**: one tab per log under `.data/` (`runs.jsonl`, `decisions.jsonl`, `failures.jsonl`, `followed.jsonl`), newest row first, refreshed every 2 seconds, with a text filter. Decision rows get the watcher's `followed` / `pending` / `ignored?` status. Prompt text is hidden until you tick "show prompts".
@@ -138,7 +138,7 @@ hooks/
 ├── hide_plugin_windows/   # SessionStart: wraps plugin hooks so they open no terminal window (Windows)
 └── token_economizer_patch/   # reapplies my patch on TokenEconomizer after updates
 tests/                  # offline tests (`python -m pytest tests`); tests/manual/ holds real-classifier scripts (run with python -m tests.manual.<name>). The last two hooks keep their tests beside them.
-web.bat                 # web interface on 127.0.0.1, opens the browser: Home (CLI commands) and Logs
+run.bat web             # web interface on 127.0.0.1, opens the browser: Home (CLI commands) and Logs
 .claude/                # settings.json
 CLAUDE.md, AGENTS.md    # agent instructions (CLAUDE.md adds the skill router protocol)
 .env.example            # copy to .env
