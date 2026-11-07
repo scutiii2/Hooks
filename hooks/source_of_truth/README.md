@@ -6,6 +6,7 @@ Keeps a single source of truth for agent rules and skills in every project under
 |---|---|
 | `AGENTS.md` | `CLAUDE.md` containing `@AGENTS.md` |
 | `.agents/skills/` | `.claude/skills` symlink to `../.agents/skills` |
+| each skill in `.agents/skills/` | a link `~/.codex/skills/<name>` so Codex loads the same copy |
 
 Codex reads the source of truth directly. Claude Code follows the pointer. Nothing is ever copied or synced.
 
@@ -16,7 +17,8 @@ Runs on SessionStart and after Write, Edit and Bash tool calls. It looks at the 
 - real `.claude/skills/` and no `.agents/skills/`: moves it to `.agents/skills/`, links it back;
 - `.agents/skills/` and no `.claude/skills`: adds the link;
 - `CLAUDE.md` with real rules and no `AGENTS.md`: moves the rules to `AGENTS.md`, leaves `@AGENTS.md`;
-- `AGENTS.md` and no `CLAUDE.md`: writes the `@AGENTS.md` stub.
+- `AGENTS.md` and no `CLAUDE.md`: writes the `@AGENTS.md` stub;
+- a skill with no `~/.codex/skills/<name>` link: adds the link (a link or junction already there is fine; a real folder is left alone and reported).
 
 It never overwrites or deletes. If two real copies exist, it leaves both and reports it at the next SessionStart. A project with no rules or skills yet is left alone. Failures exit 0 silently; a hook must not block.
 

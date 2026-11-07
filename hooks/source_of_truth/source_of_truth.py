@@ -12,6 +12,8 @@ pointer to it:
 - `CLAUDE.md` holds real rules, `AGENTS.md` is missing: move the rules to
   `AGENTS.md` and leave `CLAUDE.md` as `@AGENTS.md`.
 - `AGENTS.md` exists, `CLAUDE.md` is missing: write `CLAUDE.md` as `@AGENTS.md`.
+- Each skill folder in `.agents/skills/` gets a symlink in `~/.codex/skills/`, so Codex and Claude Code load the same
+  skills from one copy. A real folder already there is left alone and reported.
 
 It never overwrites or deletes content. When two real copies exist it leaves
 both alone and says so (on SessionStart only). It creates nothing for a project
@@ -71,6 +73,33 @@ def unify_skills(project: Path) -> tuple[list[str], list[str]]:
     return [f"{project.name}: {action}."], []
 
 
+CODEX_SKILLS = Path.home() / ".codex" / "skills"
+
+
+def link_codex_skills(project: Path, codex: Path | None = None) -> tuple[list[str], list[str]]:
+    """Return (changes, warnings) after linking every skill of the project into ~/.codex/skills."""
+    codex = CODEX_SKILLS if codex is None else codex
+    agents = project / ".agents" / "skills"
+    if not agents.is_dir() or not codex.is_dir():
+        return [], []
+    changes, warnings = [], []
+    for skill in sorted(agents.iterdir()):
+        if not (skill / "SKILL.md").is_file():
+            continue
+        target = codex / skill.name
+        if target.is_symlink() or (target.exists() and os.path.samefile(target, skill)):
+            continue  # a link or junction to this skill already
+        if target.exists():
+            warnings.append(f"{skill.name}: ~/.codex/skills has a real folder; delete it so the link can replace it.")
+            continue
+        try:
+            os.symlink(skill.resolve(), target, target_is_directory=True)
+            changes.append(f"linked ~/.codex/skills/{skill.name} to {project.name}/.agents/skills/{skill.name}.")
+        except OSError as exc:
+            warnings.append(f"{skill.name}: cannot link into ~/.codex/skills ({exc}); on Windows turn on Developer Mode.")
+    return changes, warnings
+
+
 def _norm(text: str) -> str:
     return text.replace("\r\n", "\n").strip()
 
@@ -105,7 +134,7 @@ def run(cwd: Path, event: str, roots: list[Path] = ROOTS) -> dict | None:
     """The hook output for this folder, or None when there is nothing to say."""
     lines: list[str] = []
     for project in project_dirs(cwd, roots):
-        for step in (unify_skills, unify_rules):
+        for step in (unify_skills, unify_rules, link_codex_skills):
             changes, warnings = step(project)
             lines += [f"SourceOfTruth: {c}" for c in changes]
             if event == "SessionStart":

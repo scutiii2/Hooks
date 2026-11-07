@@ -5,8 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
-      - run: pip install pytest
-      - run: python -m pytest -q tests hooks/token_economizer_patch/test_te_patch.py
+      - run: uv run --with pytest pytest -q tests hooks/token_economizer_patch/test_te_patch.py
