@@ -28,7 +28,7 @@ Add to `~/.claude/settings.json` under `hooks` (user level, so it covers every p
 
 ```json
 "SessionStart": [{"hooks": [{"type": "command", "command": "py \"D:/User/Documents/Programming/AI/Hooks/SourceOfTruth/source_of_truth.py\"", "timeout": 10}]}],
-"PostToolUse": [{"matcher": "Write|Edit|MultiEdit|Bash", "hooks": [{"type": "command", "command": "py \"D:/User/Documents/Programming/AI/Hooks/SourceOfTruth/source_of_truth.py\"", "timeout": 10}]}]
+"PostToolUse": [{"matcher": "Write|Edit|MultiEdit", "hooks": [{"type": "command", "command": "py \"D:/User/Documents/Programming/AI/Hooks/SourceOfTruth/source_of_truth.py\"", "timeout": 10}]}]
 ```
 
 Append to the existing arrays; keep the other hooks. Codex can use the same command in `~/.codex/hooks.json`.

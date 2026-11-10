@@ -53,3 +53,19 @@ def test_te_patch_hook_logs_run(runs_dir):
         assert te_patch.hook() == 0
     (record,) = _records(runs_dir, "token_economizer_patch")
     assert record["event"] == "SessionStart" and record["outcome"] == "no_patch"
+
+
+def test_te_patch_shows_a_repeated_note_once(runs_dir, tmp_path, capsys):
+    from hooks.token_economizer_patch import te_patch
+
+    note = ["Update conflicts with the history patch."]
+    with patch.object(te_patch, "LAST_NOTE", tmp_path / "last_note.txt"), \
+            patch.object(te_patch, "patches", return_value=["p"]), \
+            patch.object(te_patch, "_needs_install", return_value=False), \
+            patch.object(te_patch, "ensure", return_value=note):
+        te_patch.hook()
+        first = capsys.readouterr().out
+        te_patch.hook()
+        second = capsys.readouterr().out
+    assert "Update conflicts" in first and second == ""
+    assert [r["outcome"] for r in _records(runs_dir, "token_economizer_patch")] == ["notes", "repeat"]

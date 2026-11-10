@@ -30,6 +30,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 LOCK = HERE / ".ensure.lock"
+LAST_NOTE = HERE.parents[1] / ".data" / "token_economizer_patch" / "last_note.txt"  # a note shows once, not every session
 KEY = "tokeneconomizer@tokeneconomizer"
 SOURCE = "microsoft/TokenEconomizer"
 CLAUDE = Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude"))
@@ -216,7 +217,7 @@ def ensure(hosts=HOSTS) -> list[str]:
                 notes.append(f"History patch applied to {h.name} ({t.name}).")
             elif r == "conflict":
                 notes.append(f"Update conflicts with the history patch for {h.name} ({t.name}); "
-                             "bootstrap is off there until you run te_patch.py refresh.")
+                             "bootstrap is off there until you run te_patch.py update " + h.name + " (or off " + h.name + ").")
     return notes
 
 
@@ -269,8 +270,15 @@ def hook() -> int:
                                  stderr=subprocess.DEVNULL, creationflags=flags)
                 notes.append("TokenEconomizer is missing on a host; installing it in the background.")
         notes += ensure([h for h in HOSTS if h.installed()])
-        record = {"session_id": sid, "outcome": "notes" if notes else "nothing", "notes": len(notes),
-                  "note": " ".join(notes)[:300]}
+        text = " ".join(notes)
+        seen = LAST_NOTE.read_text(encoding="utf-8") if LAST_NOTE.exists() else ""
+        if text and text == seen:
+            notes = []  # same note as last session: logged, not shown again
+        elif text or seen:
+            LAST_NOTE.parent.mkdir(parents=True, exist_ok=True)
+            LAST_NOTE.write_text(text, encoding="utf-8")
+        record = {"session_id": sid, "outcome": "notes" if notes else ("repeat" if text else "nothing"),
+                  "notes": len(notes), "note": text[:300]}
         if notes:
             print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart",
                                                      "additionalContext": " ".join(notes)}}))

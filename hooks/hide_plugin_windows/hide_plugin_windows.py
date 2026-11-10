@@ -90,8 +90,13 @@ def log_run(started: float, record: dict) -> None:
 def main() -> int:
     started, record = time.time(), {"outcome": "error"}
     try:
+        try:  # the session id ties this run to a chat; a hand run has a tty and no payload
+            sid = None if sys.stdin is None or sys.stdin.isatty() else json.load(sys.stdin).get("session_id")
+        except (ValueError, OSError):
+            sid = None
         lines = run()
-        record = {"outcome": "wrapped" if lines else "nothing", "files": len(lines), "note": "; ".join(lines)[:300]}
+        record = {"session_id": sid, "outcome": "wrapped" if lines else "nothing", "files": len(lines),
+                  "note": "; ".join(lines)[:300]}
         if sys.stdout:  # pythonw has no stdout
             print(*lines, sep="\n")
     except Exception:  # noqa: BLE001 - a hook must never block the session
