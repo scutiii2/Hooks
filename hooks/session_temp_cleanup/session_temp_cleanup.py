@@ -114,7 +114,18 @@ def sweep_codex(images_root: Path, db: Path, current: str = "", dry_run: bool = 
     return removed
 
 
+def log_run(started: float, record: dict) -> None:
+    """Run log in .data/session_temp_cleanup/runs.jsonl; this file runs by path, so find core/ first."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from core.py.runlog import log_run as write
+        write("session_temp_cleanup", record, started)
+    except Exception:  # noqa: BLE001 - the log must never block the hook
+        pass
+
+
 def main() -> int:
+    started = time.time()
     try:
         # shortcut: reads stdin only when piped by a hook; a hand run has a tty and skips it.
         raw = "" if sys.stdin is None or sys.stdin.isatty() else sys.stdin.read()
@@ -129,8 +140,11 @@ def main() -> int:
                             app_sessions=Path(os.environ["APPDATA"]) / "Claude" / "claude-code-sessions")
         if "--dry-run" in sys.argv:
             print("\n".join(map(str, removed)) or "nothing to delete")
+        host = "codex" if "codex" in sys.argv else "claude"
+        log_run(started, {"event": "SessionStart", "session_id": current, "host": host, "dry_run": dry,
+                          "outcome": "removed" if removed else "nothing", "removed": len(removed)})
     except Exception:
-        pass
+        log_run(started, {"event": "SessionStart", "outcome": "error"})
     return 0
 
 

@@ -10,7 +10,8 @@ const path = require('path');
 const { logRun } = require('../../core/js/runlog');
 
 const started = Date.now();
-const log = (outcome, extra) => logRun('noise_filter', { event: 'PreToolUse', matcher: 'Bash', outcome, ...extra }, started);
+let sessionId;
+const log = (outcome, extra) => logRun('noise_filter', { event: 'PreToolUse', matcher: 'Bash', session_id: sessionId, outcome, ...extra }, started);
 
 const NOISY_PATTERNS = [
   /\b(npm|yarn|pnpm|npx)\s+(install|ci\b|add|update|upgrade|dedupe|run\s+\S+|test|build)\b/i,
@@ -22,8 +23,8 @@ const NOISY_PATTERNS = [
   /\bgo\s+(build|test|install|get|vet|mod\s+tidy)\b/i,
   /\b(mvn|mvnw)\b.*\b(install|test|package|compile)\b/i,
   /\b(gradle|gradlew)\b/i,
-  /\bmake\b/i,
-  /\bcmake\b--build\b/i,
+  /(^|[;&|(]\s*)g?make(\s|$)/i, // the command, not the word "make" inside an echo or a message
+  /\bcmake\s+--build\b/i,
   /\bdocker\s+(build|pull|push|compose)\b/i,
   /\bapt(-get)?\s+(install|upgrade|update)\b/i,
   /\bbrew\s+(install|upgrade|update)\b/i,
@@ -51,6 +52,7 @@ process.stdin.on('end', () => {
     process.exit(0);
   }
 
+  sessionId = input.session_id;
   const toolInput = input.tool_input || {};
   const command = toolInput.command || '';
 

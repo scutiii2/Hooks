@@ -68,6 +68,12 @@ class SourceOfTruthTest(unittest.TestCase):
         self.run_hook()
         self.assertEqual((self.project / "CLAUDE.md").read_text().strip(), "@AGENTS.md")
 
+    def test_claude_md_with_import_and_extra_rules_is_not_a_conflict(self):
+        (self.project / "AGENTS.md").write_text("rules")
+        (self.project / "CLAUDE.md").write_text("@AGENTS.md\n\n# Claude only\n")
+        self.run_hook()
+        self.assertEqual((self.project / "CLAUDE.md").read_text(), "@AGENTS.md\n\n# Claude only\n")
+
     def test_differing_rules_are_kept(self):
         (self.project / "AGENTS.md").write_text("one")
         (self.project / "CLAUDE.md").write_text("two")

@@ -120,6 +120,8 @@ def unify_rules(project: Path) -> tuple[list[str], list[str]]:
             if _norm(text) == _norm(agents.read_text(encoding="utf-8")):
                 claude.write_text(STUB + "\n", encoding="utf-8")
                 return [f"{project.name}: CLAUDE.md duplicated AGENTS.md; now imports it."], []
+            if _norm(text).startswith(STUB):
+                return [], []  # imports AGENTS.md and adds Claude-only rules, as AGENTS.md itself advises
             return [], [f"{project.name}: CLAUDE.md and AGENTS.md differ; merge by hand into AGENTS.md."]
         if text and _norm(text) != STUB:
             agents.write_bytes(claude.read_bytes())
@@ -161,7 +163,9 @@ def main() -> int:
         cwd = Path(sys.argv[1] if len(sys.argv) > 1 else data.get("cwd") or os.getcwd())
         event = data.get("hook_event_name") or "SessionStart"
         output = run(cwd, event)
-        record = {"event": event, "outcome": "output" if output else "nothing"}
+        record = {"event": event, "session_id": data.get("session_id"), "outcome": "output" if output else "nothing"}
+        if output:
+            record["note"] = output["hookSpecificOutput"]["additionalContext"][:300]
         if output:
             print(json.dumps(output))
     except Exception:  # noqa: BLE001 - a hook must never block the session

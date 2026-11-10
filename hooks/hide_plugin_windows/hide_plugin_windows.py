@@ -19,6 +19,7 @@ import os
 import shlex
 import shutil
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -76,13 +77,26 @@ def run() -> list[str]:
     return lines
 
 
+def log_run(started: float, record: dict) -> None:
+    """Run log in .data/hide_plugin_windows/runs.jsonl; this file runs by path, so find core/ first."""
+    try:
+        sys.path.insert(0, str(ROOT))
+        from core.py.runlog import log_run as write
+        write("hide_plugin_windows", {"event": "SessionStart", **record}, started)
+    except Exception:  # noqa: BLE001 - the log must never block the hook
+        pass
+
+
 def main() -> int:
+    started, record = time.time(), {"outcome": "error"}
     try:
         lines = run()
+        record = {"outcome": "wrapped" if lines else "nothing", "files": len(lines), "note": "; ".join(lines)[:300]}
         if sys.stdout:  # pythonw has no stdout
             print(*lines, sep="\n")
     except Exception:  # noqa: BLE001 - a hook must never block the session
         pass
+    log_run(started, record)
     return 0
 
 

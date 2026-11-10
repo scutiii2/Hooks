@@ -252,6 +252,10 @@ def hook() -> int:
     """SessionStart: patch inline; run a missing install detached, since it is slow."""
     started, record = time.time(), {"outcome": "error"}
     try:
+        try:  # the session id ties this run to a chat; a hand run has a tty and no payload
+            sid = None if sys.stdin is None or sys.stdin.isatty() else json.load(sys.stdin).get("session_id")
+        except (ValueError, OSError):  # no payload, or stdin closed
+            sid = None
         if not patches():
             record = {"outcome": "no_patch"}
             return 0
@@ -265,7 +269,8 @@ def hook() -> int:
                                  stderr=subprocess.DEVNULL, creationflags=flags)
                 notes.append("TokenEconomizer is missing on a host; installing it in the background.")
         notes += ensure([h for h in HOSTS if h.installed()])
-        record = {"outcome": "notes" if notes else "nothing", "notes": len(notes)}
+        record = {"session_id": sid, "outcome": "notes" if notes else "nothing", "notes": len(notes),
+                  "note": " ".join(notes)[:300]}
         if notes:
             print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart",
                                                      "additionalContext": " ".join(notes)}}))

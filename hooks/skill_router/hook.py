@@ -42,6 +42,7 @@ def run(host: str) -> dict:
     tags = [notice] if notice else []
     extra = {"builtin_check_due": True} if notice else {}
     extra |= {"host": host} if host != "claude" else {}
+    extra["session_id"] = payload.get("session_id")
 
     if should_skip(prompt, payload.get("cwd") or ""):
         state.record_skipped()
@@ -59,7 +60,7 @@ def run(host: str) -> dict:
         state.record_failure()
         failure_log.append({"source": "SKILL", "error": result["error"][:200], "elapsed_ms": elapsed_ms})
         _emit(tags)
-        return {"outcome": "failed", **extra}
+        return {"outcome": "failed", "error": result["error"][:200], **extra}
 
     state.record(result["decision"])
 

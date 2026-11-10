@@ -6,6 +6,15 @@
 // TAIL_LINES lines (where installers/builders/test runners print their final
 // summary). Short output passes through untouched.
 
+const { logRun } = require('../../core/js/runlog');
+
+const started = Date.now();
+// Records what the filter saved, so the log can show whether wrapping is worth it.
+const log = (raw, out, linesIn, linesKept) => logRun('noise_filter', {
+  event: 'Filter', outcome: linesKept < linesIn ? 'trimmed' : 'passthrough',
+  bytes_in: Buffer.byteLength(raw), bytes_out: Buffer.byteLength(out), lines_in: linesIn, lines_kept: linesKept,
+}, started);
+
 const TAIL_LINES = 15;
 const SHORT_OUTPUT_THRESHOLD = 40;
 
@@ -46,7 +55,9 @@ process.stdin.on('end', () => {
 
   const total = lines.length;
   if (total <= SHORT_OUTPUT_THRESHOLD) {
-    process.stdout.write(lines.join('\n') + (lines.length ? '\n' : ''));
+    const out = lines.join('\n') + (lines.length ? '\n' : '');
+    process.stdout.write(out);
+    log(raw, out, total, total);
     return;
   }
 
@@ -68,5 +79,7 @@ process.stdin.on('end', () => {
     prev = i;
   }
   out.push('', `[noise-filter] kept ${keptIdx.length}/${total} lines`);
-  process.stdout.write(out.join('\n') + '\n');
+  const text = out.join('\n') + '\n';
+  process.stdout.write(text);
+  log(raw, text, total, keptIdx.length);
 });

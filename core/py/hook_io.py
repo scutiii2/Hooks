@@ -24,7 +24,7 @@ def should_skip(prompt: str, cwd: str = "") -> bool:
 
 def read_payload() -> tuple[dict, str]:
     """Returns (hook payload, prompt text)."""
-    payload = json.loads(sys.stdin.read())
+    payload = json.loads(sys.stdin.read().lstrip("﻿"))  # a BOM broke one run
     prompt = payload.get("prompt", "")
     if isinstance(prompt, dict):
         prompt = prompt.get("type", "") or ""

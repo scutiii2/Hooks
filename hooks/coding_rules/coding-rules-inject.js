@@ -18,7 +18,14 @@ try {
   process.exit(0);
 }
 
-logRun('coding_rules', { event: 'SessionStart', outcome: 'injected', chars: rules.length }, started);
+let input = {};
+try {
+  input = JSON.parse(fs.readFileSync(0, 'utf8'));
+} catch {
+  // no stdin (hand run): log without the session
+}
+// source: startup, resume, clear or compact, to see how often the rules are injected again
+logRun('coding_rules', { event: 'SessionStart', session_id: input.session_id, source: input.source, outcome: 'injected', chars: rules.length }, started);
 process.stdout.write(JSON.stringify({
   hookSpecificOutput: {
     hookEventName: 'SessionStart',
