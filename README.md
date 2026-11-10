@@ -97,7 +97,7 @@ This adds the hooks below to `~/.codex/hooks.json` (`--host codex remove` takes 
 | `source_of_truth` | yes: SessionStart, and after `apply_patch` / Bash |
 | `token_economizer_patch` | yes: SessionStart (it already patched both hosts) |
 | `skill_router` | yes: `--host codex`. Its catalog is `.agents/skills` (project and `~/.agents`) plus the skills of Codex plugins. The tag tells Codex to use `$skill`, so no global protocol file is needed |
-| `noise_filter` | no: Codex accepts `updatedInput` only together with `permissionDecision: "allow"` (on Claude that would skip the permission prompt), and the rewrite is a bash command line, while the shell Codex uses on Windows is not documented |
+| `noise_filter` | no: Codex accepts `updatedInput` only together with `permissionDecision: "allow"` (on Claude that would skip the permission prompt), and the rewrite is a bash command line, while Codex on Windows runs `pwsh.exe` (seen in its session logs), where `mktemp`, `$?` and `{ }` do not work. Decided 2026-11-10: stays off Codex |
 | followed-tracking | no: Codex has no Skill or Agent tool call to match, so Codex decisions are logged with `host: codex` and left out of `followed` / `ignored?` and `calibrate` |
 
 The command strings were checked to run in bash, cmd and PowerShell, and the stdin and stdout fields follow Codex's hook documentation (`prompt`, `tool_name`, `hookSpecificOutput.additionalContext`). Not checked: a live Codex session running them, because that needs the hooks trusted first.
