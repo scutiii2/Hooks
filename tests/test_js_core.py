@@ -42,7 +42,7 @@ def test_js_hooks_write_run_log_and_fail_open():
     root = Path(__file__).resolve().parents[1]
     log = root / ".data" / "noise_filter" / "runs.jsonl"
     before = log.read_text(encoding="utf-8").count("\n") if log.exists() else 0
-    payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "pytest -q"}})
+    payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "pip install foo"}})
     hook = root / "hooks" / "noise_filter" / "noise-filter-pretooluse.js"
     r = subprocess.run([NODE, str(hook)], input=payload, capture_output=True, text=True)
     assert r.returncode == 0 and "updatedInput" in r.stdout

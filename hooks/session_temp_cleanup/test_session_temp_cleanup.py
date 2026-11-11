@@ -6,6 +6,7 @@ from pathlib import Path
 
 import sqlite3
 
+import session_temp_cleanup
 from session_temp_cleanup import sweep, sweep_codex
 
 A, B, C, D = ("%08x-0000-0000-0000-000000000000" % n for n in (1, 2, 3, 4))
@@ -28,6 +29,16 @@ class SweepTest(unittest.TestCase):
             self.assertTrue((temp / "x" / A).exists() and (temp / "x" / C).exists())
             self.assertTrue((temp / "x" / "scratchpad").exists())
             self.assertFalse((temp / "x" / B).exists())
+
+    def test_counts_freed_bytes(self):
+        with tempfile.TemporaryDirectory() as t:
+            t = Path(t)
+            (t / "projects").mkdir()
+            (t / "claude" / "x" / B).mkdir(parents=True)
+            (t / "claude" / "x" / B / "f.txt").write_text("12345")
+            session_temp_cleanup.freed[0] = 0
+            sweep(t / "claude", t / "projects", now=time.time() + 48 * 3600)
+            self.assertEqual(session_temp_cleanup.freed[0], 5)
 
     def test_app_store_ids_kept(self):
         with tempfile.TemporaryDirectory() as t:

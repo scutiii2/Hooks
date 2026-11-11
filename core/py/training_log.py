@@ -36,7 +36,11 @@ class JsonlLog:
         for path in ((self.path + ".1", self.path) if with_backup else (self.path,)):
             if os.path.exists(path):
                 with open(path, "r", encoding="utf-8") as f:
-                    records += [json.loads(line) for line in f if line.strip()]
+                    for line in f:
+                        try:
+                            records.append(json.loads(line))
+                        except ValueError:
+                            pass  # blank or torn line (two hooks appended at once): skip it
         return records
 
 

@@ -69,3 +69,13 @@ def test_te_patch_shows_a_repeated_note_once(runs_dir, tmp_path, capsys):
         second = capsys.readouterr().out
     assert "Update conflicts" in first and second == ""
     assert [r["outcome"] for r in _records(runs_dir, "token_economizer_patch")] == ["notes", "repeat"]
+
+
+def test_read_all_skips_torn_lines(tmp_path):
+    from core.py.training_log import JsonlLog
+    log = JsonlLog(str(tmp_path / "x.jsonl"))
+    log.append({"a": 1})
+    with open(log.path, "a", encoding="utf-8") as f:
+        f.write('": 722}\n')  # tail left by two interleaved appends
+    log.append({"a": 2})
+    assert [r["a"] for r in log.read_all()] == [1, 2]

@@ -134,7 +134,7 @@ core/                   # shared code, one folder per language; both write the s
 hooks/
 ├── skill_router/       # skill picker: catalog, built-ins, picker, hook, state, toggle, config.json
 ├── coding_rules/       # SessionStart: injects my global coding rules (node)
-├── noise_filter/       # PreToolUse(Bash): trims noisy command output (node)
+├── noise_filter/       # PreToolUse(Bash): trims long output of installs, builds, full test runs (node); review 2026-11-19, remove if it saves under 10%
 ├── source_of_truth/    # keeps AGENTS.md as the single source for CLAUDE.md and skills
 ├── hide_plugin_windows/   # SessionStart: wraps plugin hooks so they open no terminal window (Windows)
 └── token_economizer_patch/   # reapplies my patch on TokenEconomizer after updates

@@ -56,6 +56,23 @@ def known_sessions(projects: Path, app_sessions: Path | None = None) -> set[str]
     return ids
 
 
+freed = [0]  # bytes deleted by this run, for the run log
+
+
+def folder_bytes(folder: Path) -> int:
+    return sum(f.stat().st_size for f in folder.rglob("*") if f.is_file() and not f.is_symlink())
+
+
+def drop(folder: Path, dry_run: bool) -> None:
+    """Delete a folder (unless dry run) and add its size to `freed`."""
+    try:
+        freed[0] += folder_bytes(folder)
+    except OSError:
+        pass
+    if not dry_run:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
 def newest_mtime(folder: Path) -> float:
     """Newest modification time inside a folder (the folder itself when empty)."""
     latest = folder.stat().st_mtime
@@ -81,8 +98,7 @@ def sweep(temp_root: Path, projects: Path, current: str = "", dry_run: bool = Fa
         for session in (s for s in project.glob("*") if s.is_dir() and UUID.match(s.name)):
             if session.name in keep or now - newest_mtime(session) < GRACE_HOURS * 3600:
                 continue
-            if not dry_run:
-                shutil.rmtree(session, ignore_errors=True)
+            drop(session, dry_run)
             removed.append(session)
     return removed
 
@@ -108,8 +124,7 @@ def sweep_codex(images_root: Path, db: Path, current: str = "", dry_run: bool = 
     for folder in (f for f in images_root.glob("*") if f.is_dir() and UUID.match(f.name)):
         if folder.name in threads or folder.name == current or now - newest_mtime(folder) < GRACE_HOURS * 3600:
             continue
-        if not dry_run:
-            shutil.rmtree(folder, ignore_errors=True)
+        drop(folder, dry_run)
         removed.append(folder)
     return removed
 
@@ -142,7 +157,8 @@ def main() -> int:
             print("\n".join(map(str, removed)) or "nothing to delete")
         host = "codex" if "codex" in sys.argv else "claude"
         log_run(started, {"event": "SessionStart", "session_id": current, "host": host, "dry_run": dry,
-                          "outcome": "removed" if removed else "nothing", "removed": len(removed)})
+                          "outcome": "removed" if removed else "nothing", "removed": len(removed),
+                          "freed_bytes": freed[0]})
     except Exception:
         log_run(started, {"event": "SessionStart", "outcome": "error"})
     return 0
