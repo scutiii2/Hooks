@@ -18,6 +18,7 @@ from urllib.parse import parse_qs, urlparse
 
 from ..paths import DATA, ROOT
 from ..training_log import followed_log
+from . import transfer
 from .cli import COMMANDS, resolve as resolve_command
 from .watch_decisions import IGNORE_AFTER_SECONDS, matching_decision
 
@@ -141,7 +142,19 @@ class Handler(BaseHTTPRequestHandler):
         # A JSON content type forces a CORS preflight this server never grants, so other sites cannot run commands.
         if not self._host_ok() or self.headers.get("Content-Type") != "application/json":
             return self._json(403, {"error": "forbidden"})
-        if urlparse(self.path).path != "/api/run":
+        route = urlparse(self.path).path
+        if route in ("/api/export", "/api/import", "/api/pick-folder"):
+            try:
+                body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length", 0)), 4096)) or b"{}")
+                if route == "/api/pick-folder":
+                    return self._json(200, {"folder": transfer.pick_folder()})
+                action = transfer.export_to if route == "/api/export" else transfer.import_from
+                return self._json(200, {"files": action(str(body.get("folder", "")))})
+            except (ValueError, TypeError, AttributeError) as e:
+                return self._json(400, {"error": str(e)})
+            except (OSError, subprocess.SubprocessError) as e:
+                return self._json(500, {"error": str(e)})
+        if route != "/api/run":
             return self._json(404, {"error": "not found"})
         try:
             body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length", 0)), 4096)))

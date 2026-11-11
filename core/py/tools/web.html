@@ -45,14 +45,29 @@
                 padding:5px 12px; cursor:pointer; font:inherit; }
   .cmd pre { margin:8px 0 0; padding:8px; max-height:300px; overflow:auto; white-space:pre-wrap; word-break:break-word;
              background:var(--bg); border-radius:6px; font:12px/1.4 ui-monospace, Consolas, monospace; }
+  #backup { max-width:560px; } #backup form { margin:0; }
   .empty { padding:24px; text-align:center; color:var(--muted); }
 </style>
 </head>
 <body>
 <main>
   <h1>Hooks</h1>
-  <div class="tabs"><button id="t-home">Home</button><button id="t-logs">Logs</button></div>
+  <div class="tabs"><button id="t-home">Home</button><button id="t-logs">Logs</button><button id="t-backup">Backup</button></div>
   <section id="home" class="cmds"></section>
+  <section id="backup" class="cmd" hidden>
+    <h2>Import / export</h2>
+    <p>Copies <code>.data</code> (logs, state, stats) and <code>.memory</code> (labeled learning examples) to or from a folder. Import overwrites files with the same name.</p>
+    <form id="bk-form">
+      <input id="bk-folder" placeholder="Folder path" aria-label="Folder">
+      <button type="button" id="bk-pick">Browse...</button>
+    </form>
+    <p></p>
+    <form>
+      <button type="button" id="bk-export">Export to folder</button>
+      <button type="button" id="bk-import">Import from folder</button>
+    </form>
+    <pre id="bk-out" hidden></pre>
+  </section>
   <section id="logs" hidden>
   <nav id="tabs"></nav>
   <div class="bar">
@@ -172,16 +187,46 @@ async function buildHome() {
   }
 }
 
+async function post(url, body) {
+  const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  return r.json();
+}
+$("bk-folder").value = load("backup-folder") || "";
+$("bk-form").onsubmit = (e) => e.preventDefault();
+$("bk-pick").onclick = async () => {
+  $("bk-pick").disabled = true;
+  try {
+    const j = await post("/api/pick-folder", {});
+    if (j.folder) $("bk-folder").value = j.folder;
+  } catch (e) { $("bk-out").hidden = false; $("bk-out").textContent = "server not reachable"; }
+  $("bk-pick").disabled = false;
+};
+async function transfer(kind) {
+  const folder = $("bk-folder").value;
+  const out = $("bk-out");
+  out.hidden = false;
+  if (kind === "import" && !confirm("Import overwrites same-named files in .data and .memory. Continue?")) { out.textContent = "cancelled"; return; }
+  out.textContent = "working...";
+  store("backup-folder", folder);
+  try {
+    const j = await post("/api/" + kind, { folder });
+    out.textContent = j.error ? j.error : `${kind} done: ${j.files.data} data files, ${j.files.memory} memory files`;
+  } catch (e) { out.textContent = "server not reachable"; }
+}
+$("bk-export").onclick = () => transfer("export");
+$("bk-import").onclick = () => transfer("import");
+
 function page(name) {
-  $("home").hidden = name !== "home";
-  $("logs").hidden = name !== "logs";
-  $("t-home").setAttribute("aria-pressed", name === "home");
-  $("t-logs").setAttribute("aria-pressed", name === "logs");
+  for (const p of ["home", "logs", "backup"]) {
+    $(p).hidden = name !== p;
+    $("t-" + p).setAttribute("aria-pressed", name === p);
+  }
   store("page", name);
 }
 $("t-home").onclick = () => page("home");
 $("t-logs").onclick = () => page("logs");
-page(load("page") === "logs" ? "logs" : "home");
+$("t-backup").onclick = () => page("backup");
+page(["logs", "backup"].includes(load("page")) ? load("page") : "home");
 buildHome().catch(() => { $("home").textContent = "server not reachable"; });
 
 (async () => {
