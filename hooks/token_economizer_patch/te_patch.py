@@ -178,7 +178,8 @@ def _git_apply(target: Path, prefix: str, patch: Path, *flags: str) -> bool:
 
 
 def state(target: Path, prefix: str) -> tuple[str, Path | None]:
-    """(applied | missing | conflict, the patch that fits). Conflict: upstream changed the patched code."""
+    """(applied | missing | native | conflict, the patch that fits). Native: upstream has its own history import,
+    so no patch is needed. Conflict: upstream changed the patched code."""
     found = patches()
     for p in found:
         if _git_apply(target, prefix, p, "--reverse", "--check"):
@@ -186,7 +187,17 @@ def state(target: Path, prefix: str) -> tuple[str, Path | None]:
     for p in found:
         if _git_apply(target, prefix, p, "--check"):
             return "missing", p
+    if _has_native_history(target, prefix):
+        return "native", None
     return "conflict", None
+
+
+def _has_native_history(target: Path, prefix: str) -> bool:
+    """Newer upstream ships its own Claude-history import (`history_import`); our patch is a rival to it."""
+    try:
+        return "history_import" in (target / prefix / "tokeneconomizer" / "plugin" / "history.py").read_text(encoding="utf-8")
+    except OSError:
+        return False
 
 
 def apply(target: Path, prefix: str) -> str:

@@ -35,6 +35,12 @@ def test_apply_remove_and_conflict(tmp_path, monkeypatch):
     assert f.read_text().splitlines() == ["one"]
     f.write_text("changed upstream\n", newline="\n")
     assert te_patch.state(inst, 'lib')[0] == "conflict"
+    # upstream later ships its own history import: no patch needed, no conflict note
+    history = inst / "lib" / "tokeneconomizer" / "plugin" / "history.py"
+    history.parent.mkdir(parents=True)
+    history.write_text("history_import = False")
+    assert te_patch.state(inst, 'lib') == ("native", None)
+    assert te_patch.apply(inst, 'lib') == "native"
 
 
 def test_claude_off_flips_setting(tmp_path, monkeypatch):
