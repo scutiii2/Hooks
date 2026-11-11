@@ -56,15 +56,19 @@
   <section id="home" class="cmds"></section>
   <section id="backup" class="cmd" hidden>
     <h2>Import / export</h2>
-    <p>Copies <code>.data</code> (logs, state, stats) and <code>.memory</code> (labeled learning examples) to or from a folder. Import overwrites files with the same name.</p>
+    <p>Saves <code>.data</code> (logs, state, stats) and <code>.memory</code> (labeled learning examples) as one zip file in a folder. With a password the file is encrypted (<code>.hbk</code>). Import takes a backup file, or a folder (newest backup in it) and overwrites files with the same name.</p>
     <form id="bk-form">
-      <input id="bk-folder" placeholder="Folder path" aria-label="Folder">
+      <input id="bk-folder" placeholder="Folder (export) or backup file (import)" aria-label="Folder or backup file">
       <button type="button" id="bk-pick">Browse...</button>
     </form>
     <p></p>
+    <form id="bk-pw-form">
+      <input id="bk-password" type="password" autocomplete="off" placeholder="Password (optional: encrypts the export)" aria-label="Password">
+    </form>
+    <p></p>
     <form>
-      <button type="button" id="bk-export">Export to folder</button>
-      <button type="button" id="bk-import">Import from folder</button>
+      <button type="button" id="bk-export">Export to zip</button>
+      <button type="button" id="bk-import">Import backup</button>
     </form>
     <pre id="bk-out" hidden></pre>
   </section>
@@ -193,6 +197,7 @@ async function post(url, body) {
 }
 $("bk-folder").value = load("backup-folder") || "";
 $("bk-form").onsubmit = (e) => e.preventDefault();
+$("bk-pw-form").onsubmit = (e) => e.preventDefault();
 $("bk-pick").onclick = async () => {
   $("bk-pick").disabled = true;
   try {
@@ -209,8 +214,8 @@ async function transfer(kind) {
   out.textContent = "working...";
   store("backup-folder", folder);
   try {
-    const j = await post("/api/" + kind, { folder });
-    out.textContent = j.error ? j.error : `${kind} done: ${j.files.data} data files, ${j.files.memory} memory files`;
+    const j = await post("/api/" + kind, { folder, password: $("bk-password").value });
+    out.textContent = j.error ? j.error : `${kind} done: ${j.files.data} data files, ${j.files.memory} memory files\n${j.files.file}`;
   } catch (e) { out.textContent = "server not reachable"; }
 }
 $("bk-export").onclick = () => transfer("export");

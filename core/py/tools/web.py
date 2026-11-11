@@ -149,7 +149,7 @@ class Handler(BaseHTTPRequestHandler):
                 if route == "/api/pick-folder":
                     return self._json(200, {"folder": transfer.pick_folder()})
                 action = transfer.export_to if route == "/api/export" else transfer.import_from
-                return self._json(200, {"files": action(str(body.get("folder", "")))})
+                return self._json(200, {"files": action(str(body.get("folder", "")), str(body.get("password", "")))})
             except (ValueError, TypeError, AttributeError) as e:
                 return self._json(400, {"error": str(e)})
             except (OSError, subprocess.SubprocessError) as e:
