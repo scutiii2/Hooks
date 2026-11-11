@@ -18,7 +18,7 @@ from urllib.parse import parse_qs, urlparse
 
 from ..paths import DATA, ROOT
 from ..training_log import followed_log
-from . import transfer
+from . import skills_sync, transfer
 from .cli import COMMANDS, resolve as resolve_command
 from .watch_decisions import IGNORE_AFTER_SECONDS, matching_decision
 
@@ -143,9 +143,11 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok() or self.headers.get("Content-Type") != "application/json":
             return self._json(403, {"error": "forbidden"})
         route = urlparse(self.path).path
-        if route in ("/api/export", "/api/import", "/api/pick-folder"):
+        if route in ("/api/export", "/api/import", "/api/pick-folder", "/api/skills"):
             try:
-                body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length", 0)), 4096)) or b"{}")
+                body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length", 0)), 65536)) or b"{}")
+                if route == "/api/skills":
+                    return self._json(200, skills_sync.handle(str(body.get("action", "")), body))
                 if route == "/api/pick-folder":
                     return self._json(200, {"folder": transfer.pick_folder()})
                 action = transfer.export_to if route == "/api/export" else transfer.import_from

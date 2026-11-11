@@ -46,13 +46,16 @@
   .cmd pre { margin:8px 0 0; padding:8px; max-height:300px; overflow:auto; white-space:pre-wrap; word-break:break-word;
              background:var(--bg); border-radius:6px; font:12px/1.4 ui-monospace, Consolas, monospace; }
   #backup { max-width:560px; } #backup form { margin:0; }
+  #skills { max-width:960px; } #skills .cmd { margin-bottom:12px; } #skills .cmd p { margin:4px 0 8px; }
+  #skills td button { padding:1px 8px; margin-right:4px; } #skills select { font:inherit; }
+  #skills .row { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin:6px 0; }
   .empty { padding:24px; text-align:center; color:var(--muted); }
 </style>
 </head>
 <body>
 <main>
   <h1>Hooks</h1>
-  <div class="tabs"><button id="t-home">Home</button><button id="t-logs">Logs</button><button id="t-backup">Backup</button></div>
+  <div class="tabs"><button id="t-home">Home</button><button id="t-logs">Logs</button><button id="t-backup">Backup</button><button id="t-skills">Skills &amp; plugins</button></div>
   <section id="home" class="cmds"></section>
   <section id="backup" class="cmd" hidden>
     <h2>Import / export</h2>
@@ -71,6 +74,36 @@
       <button type="button" id="bk-import">Import backup</button>
     </form>
     <pre id="bk-out" hidden></pre>
+  </section>
+  <section id="skills" hidden>
+    <div class="cmd"><h2>Global skills</h2>
+      <p>Skills both tools load. Delete removes the skill from Claude and Codex (the folder goes to Trash, so it can be restored). Sync adds the missing link where a skill exists in only one tool.</p>
+      <div class="wrap"><table id="sk-global"></table></div>
+      <div class="row"><button type="button" id="sk-sync">Sync Claude and Codex</button><button type="button" id="sk-refresh">Refresh</button></div>
+    </div>
+    <div class="cmd"><h2>Project-only skills</h2>
+      <p>Found in project folders and not global. Tick one to include it in the export; Make global copies it to the global store and links both tools.</p>
+      <div class="wrap"><table id="sk-proj"></table></div>
+    </div>
+    <div class="cmd"><h2>Plugins</h2>
+      <p>Claude Code and Codex keep separate plugin lists. Add copies a plugin to the other tool; Delete removes it from both.</p>
+      <div class="wrap"><table id="sk-plug"></table></div>
+      <div class="row"><label><input type="checkbox" id="sk-purge"> also delete the downloaded plugin files</label></div>
+    </div>
+    <div class="cmd" id="sk-pp-card" hidden><h2>Plugins switched on in projects</h2>
+      <div class="wrap"><table id="sk-pp"></table></div>
+    </div>
+    <div class="cmd"><h2>Export / import</h2>
+      <p>One zip with every global skill, the ticked project skills and the plugin list (an encrypted <code>.hbk</code> with a password). Import restores skills (old copies go to Trash) and merges plugins.</p>
+      <form id="sk-form" class="row"><input id="sk-folder" placeholder="Folder (export) or backup file (import)" aria-label="Folder or file">
+        <button type="button" id="sk-pick">Browse...</button></form>
+      <form id="sk-pw-form" class="row"><input id="sk-password" type="password" autocomplete="off" placeholder="Password (optional)" aria-label="Password"></form>
+      <div class="row"><button type="button" id="sk-export">Export</button><button type="button" id="sk-import">Import</button></div>
+    </div>
+    <div class="cmd"><h2>Trash</h2>
+      <div class="wrap"><table id="sk-trash"></table></div>
+    </div>
+    <pre id="sk-out" class="cmd" hidden></pre>
   </section>
   <section id="logs" hidden>
   <nav id="tabs"></nav>
@@ -221,17 +254,109 @@ async function transfer(kind) {
 $("bk-export").onclick = () => transfer("export");
 $("bk-import").onclick = () => transfer("import");
 
+// ---- Skills & plugins
+const skillsCall = async (body) => { const j = await post("/api/skills", body); if (j.error) throw new Error(j.error); return j; };
+function mk(tag, text, fn) { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (fn) { e.type = "button"; e.onclick = fn; } return e; }
+function fill(table, head, rows) {
+  table.replaceChildren();
+  const h = table.insertRow();
+  for (const x of head) h.append(mk("th", x));
+  for (const r of rows) {
+    const tr = table.insertRow();
+    for (const c of r) { const cell = tr.insertCell(); if (c instanceof Node) cell.append(c); else cell.textContent = c ?? "-"; }
+  }
+  if (!rows.length) { const c = table.insertRow().insertCell(); c.colSpan = head.length; c.textContent = "none"; }
+}
+const statusCell = (s) => { const e = mk("span", s); e.className = s === "ok" ? "ok" : (s === "conflict" || s === "broken link") ? "bad" : "warn"; return e; };
+const planLines = (plan) => plan.map((p) => typeof p === "string" ? p : `${p.name}: ${p.action}${p.note ? " (" + p.note + ")" : ""}`);
+// Every change shows its plan first, then runs only after the user confirms.
+async function change(body, title) {
+  const out = $("sk-out");
+  out.hidden = false;
+  try {
+    let b = { ...body };
+    let dry;
+    try { dry = await skillsCall({ ...b, dry_run: true }); }
+    catch (e) {
+      if (b.action === "promote_skill" && /already exists/.test(e.message) && confirm(e.message.split(";")[0] + ". Replace it? (the old one goes to Trash)")) {
+        b = { ...b, overwrite: true };
+        dry = await skillsCall({ ...b, dry_run: true });
+      } else throw e;
+    }
+    const lines = planLines(dry.plan || []);
+    if (!lines.length) { out.textContent = "nothing to do"; return; }
+    if (!confirm(`${title}\n\n${lines.join("\n")}\n\nContinue? Removed things go to Trash and can be restored.`)) { out.textContent = "cancelled"; return; }
+    const done = await skillsCall({ ...b, dry_run: false });
+    out.textContent = ["done", done.trash && `undo from Trash: ${done.trash}`, ...(done.notes || [])].filter(Boolean).join("\n");
+  } catch (e) { out.textContent = String(e.message || e); }
+  await loadSkills();
+}
+async function loadSkills() {
+  const j = await skillsCall({ action: "scan" });
+  fill($("sk-global"), ["Skill", "Claude", "Codex", "Status", "Source", ""], j.skills.map((s) =>
+    [s.name, s.claude, s.codex, statusCell(s.status),
+     s.in_store ? "global store" : "project: " + (s.source || "").split(/[\\/]\.agents[\\/]/)[0].split(/[\\/]/).pop(),
+     mk("button", "Delete", () => change({ action: "delete_skill", name: s.name }, `Delete skill ${s.name} from Claude and Codex`))]));
+  const only = j.project.skills.filter((s) => !s.global);
+  fill($("sk-proj"), ["Export", "Project", "Skill", ""], only.map((s) => {
+    const tick = mk("input"); tick.type = "checkbox"; tick.dataset.path = s.path;
+    const mode = mk("select"); for (const m of ["link", "keep", "remove"]) mode.append(new Option(m, m));
+    mode.title = "what happens to the project copy: link = replace it with a link to the global one, keep, remove (to Trash)";
+    const box = mk("span"); box.append(mode, mk("button", "Make global", () =>
+      change({ action: "promote_skill", path: s.path, mode: mode.value }, `Make ${s.name} global`)));
+    return [tick, s.project, s.name + (s.codex_linked ? " (linked in Codex)" : ""), box];
+  }));
+  fill($("sk-plug"), ["Plugin", "Claude", "Codex", ""], j.plugins.map((p) => {
+    const box = mk("span");
+    if (!p.claude) box.append(mk("button", "Add to Claude", () => change({ action: "add_plugin", id: p.id, to: "claude" }, `Add ${p.id} to Claude`)));
+    if (!p.codex) box.append(mk("button", "Add to Codex", () => change({ action: "add_plugin", id: p.id, to: "codex" }, `Add ${p.id} to Codex`)));
+    box.append(mk("button", "Delete", () => change({ action: "delete_plugin", id: p.id, purge_cache: $("sk-purge").checked }, `Delete plugin ${p.id} from Claude and Codex`)));
+    return [p.id, p.claude, p.codex, box];
+  }));
+  $("sk-pp-card").hidden = !j.project.plugins.length;
+  fill($("sk-pp"), ["Project", "Plugin", "Enabled", ""], j.project.plugins.map((p) =>
+    [p.project, p.id, p.enabled ? "on" : "off", mk("button", "Make global", () => change({ action: "promote_plugin", project: p.path, id: p.id }, `Make ${p.id} global`))]));
+  fill($("sk-trash"), ["When", "Items", ""], j.trash.map((t) =>
+    [t.id, t.items.join(", "), mk("button", "Restore", async () => {
+      if (!confirm("Put these back?\n" + t.items.join("\n"))) return;
+      try { await skillsCall({ action: "restore", bucket: t.id }); $("sk-out").textContent = "restored"; } catch (e) { $("sk-out").textContent = e.message; }
+      $("sk-out").hidden = false;
+      await loadSkills();
+    })]));
+}
+$("sk-refresh").onclick = () => loadSkills().catch(() => {});
+$("sk-sync").onclick = () => change({ action: "sync_skills" }, "Sync skills between Claude and Codex");
+$("sk-form").onsubmit = (e) => e.preventDefault();
+$("sk-pw-form").onsubmit = (e) => e.preventDefault();
+$("sk-folder").value = load("skills-folder") || "";
+$("sk-pick").onclick = async () => { const j = await post("/api/pick-folder", {}); if (j.folder) $("sk-folder").value = j.folder; };
+$("sk-export").onclick = async () => {
+  const out = $("sk-out");
+  out.hidden = false; out.textContent = "working...";
+  store("skills-folder", $("sk-folder").value);
+  try {
+    const picked = [...document.querySelectorAll("#sk-proj input[type=checkbox]:checked")].map((c) => c.dataset.path);
+    const j = await skillsCall({ action: "export", folder: $("sk-folder").value, password: $("sk-password").value, project_skills: picked });
+    out.textContent = [`exported ${j.skills} skills, ${j.plugins} plugins`, j.file, ...j.notes].join("\n");
+  } catch (e) { out.textContent = String(e.message || e); }
+};
+$("sk-import").onclick = () => { store("skills-folder", $("sk-folder").value);
+  change({ action: "import", path: $("sk-folder").value, password: $("sk-password").value }, "Import skills and plugins"); };
+
+const PAGES = ["home", "logs", "backup", "skills"];
 function page(name) {
-  for (const p of ["home", "logs", "backup"]) {
+  for (const p of PAGES) {
     $(p).hidden = name !== p;
     $("t-" + p).setAttribute("aria-pressed", name === p);
   }
   store("page", name);
+  if (name === "skills") loadSkills().catch(() => { $("sk-out").hidden = false; $("sk-out").textContent = "server not reachable"; });
 }
 $("t-home").onclick = () => page("home");
 $("t-logs").onclick = () => page("logs");
 $("t-backup").onclick = () => page("backup");
-page(["logs", "backup"].includes(load("page")) ? load("page") : "home");
+$("t-skills").onclick = () => page("skills");
+page(["logs", "backup", "skills"].includes(load("page")) ? load("page") : "home");
 buildHome().catch(() => { $("home").textContent = "server not reachable"; });
 
 (async () => {
