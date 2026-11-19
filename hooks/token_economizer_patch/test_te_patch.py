@@ -1,5 +1,7 @@
 """Run: py -m pytest test_te_patch.py (needs git)."""
 import json
+
+import pytest
 import subprocess
 
 import te_patch
@@ -117,32 +119,46 @@ def test_install_cli_asks_first_and_checks_the_result(monkeypatch, capsys):
     assert te_patch.install_cli() == 0 and not ran  # both installed: nothing runs
 
 
-def test_claude_install_refreshes_a_stale_marketplace_and_uninstall_of_nothing_is_ok(monkeypatch):
-    calls = []
+def _drive(monkeypatch, host, known, fail_first_add=False):
+    calls, adds = [], []
 
     def fake(*cmd, **k):
         calls.append(cmd[2:4])
-        if cmd[2] == "uninstall":
-            te_patch.LAST_ERROR[0] = "exited 1: Plugin x not found in installed plugins"
-            return False
+        if cmd[-1] == te_patch.KEY and cmd[2] in ("install", "add"):
+            adds.append(1)
+            return not (fail_first_add and len(adds) == 1)
         return True
 
     monkeypatch.setattr(te_patch, "run", fake)
-    host = te_patch.ClaudeHost()
-    assert host.install() and calls.index(("marketplace", "update")) < calls.index(("install", te_patch.KEY))  # refresh first
-    assert host.uninstall() and te_patch.outcome(True) == "ok"
+    monkeypatch.setattr(type(host), "has_marketplace", lambda self: known)
+    return calls
 
 
-def test_claude_install_re_adds_a_broken_marketplace(monkeypatch):
-    calls, installs = [], []
+@pytest.mark.parametrize("host", [te_patch.ClaudeHost(), te_patch.CodexHost()])
+def test_install_adds_a_missing_marketplace_and_refreshes_a_known_one(monkeypatch, host):
+    calls = _drive(monkeypatch, host, known=False)
+    assert host.install() and ("marketplace", "add") in calls
+    assert not any(c == ("marketplace", "update") or c == ("marketplace", "upgrade") for c in calls)  # nothing to refresh
+    calls = _drive(monkeypatch, host, known=True)
+    assert host.install() and ("marketplace", "add") not in calls  # known: refreshed, not added
 
+
+@pytest.mark.parametrize("host", [te_patch.ClaudeHost(), te_patch.CodexHost()])
+def test_install_re_adds_a_broken_marketplace(monkeypatch, host):
+    calls = _drive(monkeypatch, host, known=True, fail_first_add=True)
+    assert host.install() and ("marketplace", "remove") in calls and ("marketplace", "add") in calls
+
+
+@pytest.mark.parametrize("host", [te_patch.ClaudeHost(), te_patch.CodexHost()])
+def test_update_of_a_missing_marketplace_installs_instead(monkeypatch, host):
+    calls = _drive(monkeypatch, host, known=False)
+    assert host.update() and ("marketplace", "add") in calls
+
+
+def test_claude_uninstall_of_nothing_is_ok(monkeypatch):
     def fake(*cmd, **k):
-        calls.append(cmd[2:4])
-        if cmd[2] == "install":
-            installs.append(1)
-            return len(installs) > 1  # fails until the marketplace was removed and added again
-        return True
+        te_patch.LAST_ERROR[0] = "exited 1: Plugin x not found in installed plugins"
+        return False
 
     monkeypatch.setattr(te_patch, "run", fake)
-    assert te_patch.ClaudeHost().install()
-    assert ("marketplace", "remove") in calls
+    assert te_patch.ClaudeHost().uninstall() and te_patch.outcome(True) == "ok"

@@ -90,12 +90,28 @@ class Host:
 
     def enabled(self) -> bool: raise NotImplementedError
     def set_enabled(self, value: bool) -> None: raise NotImplementedError
-    def install(self) -> bool: raise NotImplementedError
     def update(self) -> bool: raise NotImplementedError
     def uninstall(self) -> bool: raise NotImplementedError
 
     def installed(self) -> bool:
         return bool(self.targets())
+
+    # marketplace steps each host implements: is it added, add, refresh, remove, add the plugin
+    def has_marketplace(self) -> bool: raise NotImplementedError
+    def add_marketplace(self) -> bool: raise NotImplementedError
+    def refresh_marketplace(self) -> bool: raise NotImplementedError
+    def remove_marketplace(self) -> bool: raise NotImplementedError
+    def add_plugin(self) -> bool: raise NotImplementedError
+
+    def install(self) -> bool:
+        """Add the marketplace when this machine lacks it, refresh it when it has it, then add the plugin.
+        A broken marketplace copy is dropped and added again once."""
+        self.refresh_marketplace() if self.has_marketplace() else self.add_marketplace()
+        if self.add_plugin():
+            return True
+        self.remove_marketplace()
+        self.add_marketplace()
+        return self.add_plugin()
 
 
 class ClaudeHost(Host):
@@ -128,15 +144,13 @@ class ClaudeHost(Host):
         tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         tmp.replace(self.settings)
 
-    def install(self):
-        run("claude", "plugin", "marketplace", "add", SOURCE)  # fails harmlessly when already added
-        run("claude", "plugin", "marketplace", "update", "tokeneconomizer")  # a stale local copy says "not found in marketplace"
-        if run("claude", "plugin", "install", KEY):
-            return True
-        # update did not help: the local marketplace copy is broken, so drop it and add it again
-        run("claude", "plugin", "marketplace", "remove", "tokeneconomizer")
-        run("claude", "plugin", "marketplace", "add", SOURCE)
-        return run("claude", "plugin", "install", KEY)
+    def has_marketplace(self):
+        return "tokeneconomizer" in self._json(CLAUDE / "plugins" / "known_marketplaces.json")
+
+    def add_marketplace(self): return run("claude", "plugin", "marketplace", "add", SOURCE)
+    def refresh_marketplace(self): return run("claude", "plugin", "marketplace", "update", "tokeneconomizer")
+    def remove_marketplace(self): return run("claude", "plugin", "marketplace", "remove", "tokeneconomizer")
+    def add_plugin(self): return run("claude", "plugin", "install", KEY)
 
     def uninstall(self):
         if run("claude", "plugin", "uninstall", "--keep-data", KEY):
@@ -147,7 +161,9 @@ class ClaudeHost(Host):
         return False
 
     def update(self):
-        run("claude", "plugin", "marketplace", "update", "tokeneconomizer")
+        if not self.has_marketplace():  # nothing to update here: install it instead
+            return self.install()
+        self.refresh_marketplace()
         return run("claude", "plugin", "update", KEY)
 
 
@@ -196,15 +212,21 @@ class CodexHost(Host):
             text = text[:m.start()] + head + flag + "\n" + m.group(0)[len(head):] + text[m.end():]
         self.config.write_text(text, encoding="utf-8")
 
-    def install(self):
-        run("codex", "plugin", "marketplace", "add", SOURCE)
-        return run("codex", "plugin", "add", KEY)
+    def has_marketplace(self):
+        return "marketplaces.tokeneconomizer" in self._text() or any(CODEX.glob("**/marketplaces/tokeneconomizer"))
+
+    def add_marketplace(self): return run("codex", "plugin", "marketplace", "add", SOURCE)
+    def refresh_marketplace(self): return run("codex", "plugin", "marketplace", "upgrade", "tokeneconomizer")
+    def remove_marketplace(self): return run("codex", "plugin", "marketplace", "remove", "tokeneconomizer")
+    def add_plugin(self): return run("codex", "plugin", "add", KEY)
 
     def uninstall(self):
         return run("codex", "plugin", "remove", KEY)
 
     def update(self):
-        return run("codex", "plugin", "marketplace", "upgrade", "tokeneconomizer")
+        if not self.has_marketplace():  # nothing to update here: install it instead
+            return self.install()
+        return self.refresh_marketplace()
 
 
 HOSTS = [ClaudeHost(), CodexHost()]
