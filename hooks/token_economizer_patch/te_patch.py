@@ -106,12 +106,25 @@ class Host:
     def install(self) -> bool:
         """Add the marketplace when this machine lacks it, refresh it when it has it, then add the plugin.
         A broken marketplace copy is dropped and added again once."""
-        self.refresh_marketplace() if self.has_marketplace() else self.add_marketplace()
-        if self.add_plugin():
+        why = []
+
+        def step(label, ok):
+            if not ok:
+                why.append(f"{label}: {LAST_ERROR[0]}")
+            return ok
+
+        if self.has_marketplace():
+            step("refresh marketplace", self.refresh_marketplace())
+        else:
+            step("add marketplace", self.add_marketplace())
+        if step("add plugin", self.add_plugin()):
             return True
-        self.remove_marketplace()
-        self.add_marketplace()
-        return self.add_plugin()
+        step("remove marketplace", self.remove_marketplace())
+        step("add marketplace", self.add_marketplace())
+        ok = step("add plugin again", self.add_plugin())
+        if not ok:
+            LAST_ERROR[0] = " || ".join(why)  # every step that failed, so the FAILED line says where it broke
+        return ok
 
 
 class ClaudeHost(Host):
