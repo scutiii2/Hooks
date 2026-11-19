@@ -131,3 +131,18 @@ def test_claude_install_refreshes_a_stale_marketplace_and_uninstall_of_nothing_i
     host = te_patch.ClaudeHost()
     assert host.install() and calls.index(("marketplace", "update")) < calls.index(("install", te_patch.KEY))  # refresh first
     assert host.uninstall() and te_patch.outcome(True) == "ok"
+
+
+def test_claude_install_re_adds_a_broken_marketplace(monkeypatch):
+    calls, installs = [], []
+
+    def fake(*cmd, **k):
+        calls.append(cmd[2:4])
+        if cmd[2] == "install":
+            installs.append(1)
+            return len(installs) > 1  # fails until the marketplace was removed and added again
+        return True
+
+    monkeypatch.setattr(te_patch, "run", fake)
+    assert te_patch.ClaudeHost().install()
+    assert ("marketplace", "remove") in calls
