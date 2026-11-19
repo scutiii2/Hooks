@@ -55,7 +55,7 @@
 <body>
 <main>
   <h1>Hooks</h1>
-  <div class="tabs"><button id="t-home">Home</button><button id="t-logs">Logs</button><button id="t-backup">Backup</button><button id="t-skills">Skills &amp; plugins</button></div>
+  <div class="tabs"><button id="t-home">Home</button><button id="t-logs">Logs</button><button id="t-backup">Backup</button><button id="t-skills">Skills &amp; plugins</button><button id="t-health">Health</button></div>
   <section id="home" class="cmds"></section>
   <section id="backup" class="cmd" hidden>
     <h2>Import / export</h2>
@@ -74,6 +74,18 @@
       <button type="button" id="bk-import">Import backup</button>
     </form>
     <pre id="bk-out" hidden></pre>
+  </section>
+  <section id="health" hidden>
+    <div class="cmd"><h2>Health check</h2>
+      <p>Is this machine set up so the hooks can run: Python, the .venv, node, the Claude and Codex CLIs, TokenEconomizer, and the hook entries. Fix installs what is missing (a CLI, TokenEconomizer, the hooks) with the same steps as <code>run.bat</code> option 3.</p>
+      <form><button type="button" id="hl-check">Check</button> <button type="button" id="hl-fix">Fix what is missing</button></form>
+    </div>
+    <div class="cmd"><h2>Report</h2>
+      <p>Runs, speed and results per hook, and the follow rate per skill.</p>
+      <form><input id="hl-days" type="number" min="1" value="7" aria-label="Days"> days
+        <label><input type="checkbox" id="hl-skills"> per skill</label> <button type="button" id="hl-report">Report</button></form>
+    </div>
+    <pre class="cmd" id="hl-out" hidden></pre>
   </section>
   <section id="skills" hidden>
     <div class="row"><button type="button" id="sk-refresh">Refresh</button> <span>Re-scan skills, plugins and projects after changing them outside this page.</span></div>
@@ -382,7 +394,20 @@ $("sk-export").onclick = async () => {
 $("sk-import").onclick = () => { store("skills-folder", $("sk-folder").value);
   change({ action: "import", path: $("sk-folder").value, password: $("sk-password").value }, "Import skills and plugins"); };
 
-const PAGES = ["home", "logs", "backup", "skills"];
+async function health(name, args, ask) {
+  if (ask && !confirm(ask)) return;
+  const out = $("hl-out");
+  out.hidden = false; out.textContent = "running...";
+  try {
+    const j = await post("/api/run", { name, args });
+    out.textContent = j.error ? j.error : (j.output.trim() || "(no output)") + (j.code ? "\n[exit " + j.code + "]" : "");
+  } catch (e) { out.textContent = "server not reachable"; }
+}
+$("hl-check").onclick = () => health("doctor", "");
+$("hl-fix").onclick = () => health("doctor", "--fix --yes", "Install what is missing: the venv, a CLI, TokenEconomizer and the hooks? Other hooks are not touched.");
+$("hl-report").onclick = () => health("report", "--days " + (parseInt($("hl-days").value, 10) || 7) + ($("hl-skills").checked ? " --skills" : ""));
+
+const PAGES = ["home", "logs", "backup", "skills", "health"];
 function page(name) {
   for (const p of PAGES) {
     $(p).hidden = name !== p;
@@ -395,7 +420,8 @@ $("t-home").onclick = () => page("home");
 $("t-logs").onclick = () => page("logs");
 $("t-backup").onclick = () => page("backup");
 $("t-skills").onclick = () => page("skills");
-page(["logs", "backup", "skills"].includes(load("page")) ? load("page") : "home");
+$("t-health").onclick = () => page("health");
+page(["logs", "backup", "skills", "health"].includes(load("page")) ? load("page") : "home");
 buildHome().catch(() => { $("home").textContent = "server not reachable"; });
 
 (async () => {

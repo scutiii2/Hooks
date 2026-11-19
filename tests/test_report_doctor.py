@@ -89,8 +89,31 @@ def test_fix_installs_hooks_after_asking(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(manage_hooks, "CODEX_TARGET", str(tmp_path / "none.json"))
     monkeypatch.setattr(doctor, "venv_python", lambda: __file__)  # pretend the venv exists
     monkeypatch.setattr(doctor.transfer, "_gcm", lambda: object())  # and cryptography: --yes must not pip install
+    monkeypatch.setattr(doctor, "check_te", lambda: [])  # and no CLI or plugin to install
     monkeypatch.setattr("builtins.input", lambda prompt="": "n")
     doctor.main(["--fix"])
     assert not target.exists()  # said no: nothing written
     doctor.main(["--fix", "--yes"])
     assert json.loads(target.read_text())["hooks"]["Stop"][0]["hooks"] == [handler]
+
+
+def test_te_checks_warn_and_offer_a_fix(monkeypatch):
+    class Fake:
+        HOSTS = []
+
+        def health(self):
+            return [("warn", "codex: CLI not on PATH, so x", "cli"), ("ok", "claude: TokenEconomizer installed", "")]
+
+        def install_cli(self, names, yes=False):
+            installed.append((names, yes))
+
+    installed = []
+    monkeypatch.setattr(doctor, "te_patch", lambda: Fake())
+    assert doctor.check_te() == [(doctor.WARN, "codex: CLI not on PATH, so x", "cli"), (doctor.OK, "claude: TokenEconomizer installed", "")]
+    monkeypatch.setattr(doctor, "check_config", lambda host, target: [])
+    monkeypatch.setattr(doctor, "venv_python", lambda: __file__)
+    monkeypatch.setattr(doctor.transfer, "_gcm", lambda: object())
+    todo = doctor.fixes()
+    assert [w for w, _ in todo] == ["install the codex CLI with its official installer"]
+    todo[0][1]()
+    assert installed == [(["codex"], True)]

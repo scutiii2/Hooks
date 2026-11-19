@@ -183,3 +183,12 @@ def test_codex_adds_the_marketplace_the_way_config_declares_it(tmp_path, monkeyp
     toml = ["[x]", "a = 1", "", "[marketplaces.tokeneconomizer]", 'source_type = "git"', f'source = "{url}"', "", "[y]", 'source = "no"']
     (tmp_path / "config.toml").write_text(chr(10).join(toml))
     assert host.declared_source() == url
+
+
+def test_install_says_once_when_the_cli_is_missing(monkeypatch):
+    monkeypatch.setattr(te_patch, "find", lambda p: None)
+    calls = []
+    monkeypatch.setattr(te_patch, "run", lambda *c, **k: calls.append(c) or True)
+    for host in te_patch.HOSTS:
+        assert not host.install() and not calls
+        assert te_patch.outcome(False).count("not found on PATH") == 1 and f"install-cli {host.name}" in te_patch.LAST_ERROR[0]

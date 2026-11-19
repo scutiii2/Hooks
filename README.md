@@ -110,7 +110,7 @@ If `~/.codex/hooks.json` already has hooks from before the restructure (an entry
 ```bat
 run.bat web              # starts the web page and opens it in your browser
 run.bat setup            # new device: health check, then offers to create .venv, install the hooks in Claude and Codex, install cryptography
-run.bat doctor           # health check: Python, .venv, node, cryptography, hook files exist, hooks installed
+run.bat doctor           # health check: Python, .venv, node, cryptography, Claude and Codex CLIs, TokenEconomizer, hook files exist, hooks installed (`--fix` offers to install what is missing)
 run.bat update           # git pull --ff-only (from the menu it then restarts)
 .venv\Scripts\python.exe -m core.py.tools.report [--days N] [--split DATE] [--hook NAME] [--skills]   # per-hook runs, speed, outcomes, follow rate, before/after a date
 ```
@@ -119,6 +119,7 @@ run.bat update           # git pull --ff-only (from the menu it then restarts)
 
 - **Home**: the commands the CLI offers (`skill_router`, `skill_pick`, `te_patch`, `source_of_truth`, `calibrate`, `export`, `settings`), each with an arguments box and a Run button; the output shows under the card. A command stops after 120 seconds and gets no keyboard input. `web` (this server), `watch` (live terminal view) and `label` (interactive review) run from the terminal with the CLI.
 - **Backup**: export `.data/` and `.memory/` as one `hooks-backup-<time>.zip` in a folder (Browse button), or with a password as an encrypted `.hbk`. Import takes a backup file or a folder (newest backup in it; an older plain `data/` + `memory/` copy also works), overwrites same-named files and keeps the rest. With the `cryptography` package installed (`run.bat setup` offers it) the `.hbk` is AES-256-GCM with a scrypt key; without it, a stdlib-only format is used (scrypt key, HMAC-SHA256 counter-mode cipher, HMAC tag checked before decrypting), which is home-built. Both open on any device that has `cryptography`; a GCM file cannot be opened without it. Details in `core/py/tools/transfer.py`.
+- **Health**: the `doctor` check (with a Fix button for what is missing) and the `report` of runs, speed and follow rate, without opening a terminal.
 - **Skills & plugins** (`core/py/tools/skills_sync.py`): lists the global skills (real folders in the workspace `.agents/skills`, linked from `~/.claude/skills` and `~/.codex/skills`) and the plugins of both tools. Actions, each with a plan you confirm first:
   - **Sync**: adds the missing link where a skill exists in only one tool; a real folder in one tool is moved into the store and linked from both. A project skill linked only into Codex is left alone (use Make global). Plugins: Add to Claude / Add to Codex copies the entry and its git marketplace to the other tool's config (local marketplaces are refused).
   - **Delete**: a skill goes from both tools (links and the real folder); a plugin goes from `installed_plugins.json`, `settings.json` and `config.toml` (optionally its downloaded files). Everything moves to `.data/trash/<time>/` with every edited config backed up, and the Trash list restores it.

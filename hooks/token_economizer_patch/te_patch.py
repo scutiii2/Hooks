@@ -6,7 +6,7 @@ A TokenEconomizer update installs a fresh copy and drops local edits. Our edits 
 Code, Codex) this script installs the plugin when it is missing, then applies the patch.
 
     te_patch.py              hook mode (SessionStart on either host): never blocks, fails open
-    te_patch.py ensure       install what is missing, then apply, in the foreground
+    te_patch.py ensure [claude|codex]   install what is missing, then apply, in the foreground
     te_patch.py apply        apply to every installed copy now
     te_patch.py on|off [claude|codex]   enable/disable the plugin (and apply/remove the patch)
     te_patch.py status       enabled flag and patch state per host
@@ -126,7 +126,7 @@ class Host:
         step("add marketplace", self.add_marketplace())
         ok = step("add plugin again", self.add_plugin())
         if not ok:
-            LAST_ERROR[0] = " || ".join(why)  # every step that failed, so the FAILED line says where it broke
+            LAST_ERROR[0] = "".join(chr(10) + "  - " + w for w in why)  # every step that failed, one per line, so it says where it broke
         return ok
 
 
@@ -393,6 +393,19 @@ def hook() -> int:
     return 0
 
 
+def health() -> list[tuple[str, str, str]]:
+    """(level 'ok'|'warn', text, fix) per host for `doctor`; fix is 'cli', 'ensure' or ''. Changes nothing."""
+    out = []
+    for h in HOSTS:
+        if not find(h.name):
+            out.append(("warn", f"{h.name}: CLI not on PATH, so TokenEconomizer cannot be installed (te_patch.py install-cli {h.name})", "cli"))
+        elif not h.installed():
+            out.append(("warn", f"{h.name}: TokenEconomizer not installed (te_patch.py ensure {h.name})", "ensure"))
+        else:
+            out.append(("ok", f"{h.name}: TokenEconomizer installed" + ("" if h.enabled() else " (turned off)"), ""))
+    return out
+
+
 # Official installers: (windows command, mac/linux command, docs). Both are the vendors' own one-liners.
 CLI_INSTALLERS = {
     "claude": ("irm https://claude.ai/install.ps1 | iex", "curl -fsSL https://claude.ai/install.sh | bash",
@@ -439,7 +452,7 @@ def main(argv: list[str]) -> int:
     chosen = [h for h in HOSTS if h.name in argv[1:]] or HOSTS
     if cmd == "ensure":
         try:
-            print("\n".join(ensure()) or "nothing to do")
+            print("\n".join(ensure(chosen)) or "nothing to do")
         finally:
             LOCK.unlink(missing_ok=True)
     elif cmd == "apply":

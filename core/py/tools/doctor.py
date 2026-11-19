@@ -3,13 +3,14 @@
     python -m core.py.tools.doctor           check only
     python -m core.py.tools.doctor --fix     then offer to fix what it can (asks Y/N for each; --yes skips the question)
 
-Checks Python, the .venv, node, a writable .data folder, and that every hook in the Claude and Codex
+Checks Python, the .venv, node, a writable .data folder, the Claude and Codex CLIs with TokenEconomizer, and that every hook in the Claude and Codex
 config points at files that exist and includes the hooks `manage_hooks add` installs. Prints one
 line per check and exits 1 when something fails. Without --fix it changes nothing. --fix can create the
-.venv and install the hooks of this folder in Claude and Codex; it never edits or removes other hooks.
+.venv, install a missing CLI or TokenEconomizer, and install the hooks of this folder in Claude and Codex; it never edits or removes other hooks.
 """
 import json
 import os
+import importlib.util
 import re
 import shutil
 import subprocess
@@ -60,6 +61,22 @@ def check_config(host: str, target: str) -> list[tuple[str, str]]:
     return out
 
 
+def te_patch():
+    """The TokenEconomizer helper, loaded by path: it is a script, not part of a package."""
+    path = os.path.join(ROOT, "hooks", "token_economizer_patch", "te_patch.py")
+    spec = importlib.util.spec_from_file_location("te_patch_doctor", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def check_te() -> list[tuple[str, str, str]]:
+    try:
+        return [(OK if lvl == "ok" else WARN, text, fix) for lvl, text, fix in te_patch().health()]
+    except Exception as e:  # a broken helper must not stop the other checks
+        return [(WARN, f"TokenEconomizer helper could not run: {type(e).__name__}: {e}", "")]
+
+
 def writable(folder: str) -> bool:
     try:
         os.makedirs(folder, exist_ok=True)
@@ -84,6 +101,7 @@ def run() -> list[tuple[str, str]]:
     checks.append((OK, f".data writable: {DATA}") if writable(DATA) else (FAIL, f"cannot write {DATA}"))
     checks += check_config("claude", manage_hooks.CLAUDE_TARGET)
     checks += check_config("codex", manage_hooks.CODEX_TARGET)
+    checks += [(level, text) for level, text, _ in check_te()]
     return checks
 
 
@@ -98,6 +116,13 @@ def fixes() -> list[tuple[str, callable]]:
     for host, target in (("claude", manage_hooks.CLAUDE_TARGET), ("codex", manage_hooks.CODEX_TARGET)):
         if any("not installed" in t or "does not exist" in t for level, t in check_config(host, target) if level == WARN):
             todo.append((f"install the hooks of this folder in {host} ({target})", lambda h=host, t=target: manage_hooks.add(t, h)))
+    for level, text, fix in check_te():
+        host = text.split(":")[0]
+        if fix == "cli":
+            todo.append((f"install the {host} CLI with its official installer", lambda h=host: te_patch().install_cli([h], yes=True)))
+        elif fix == "ensure":
+            mod = te_patch()
+            todo.append((f"install TokenEconomizer for {host}", lambda h=host: print(chr(10).join(mod.ensure([x for x in mod.HOSTS if x.name == h])))))
     return todo
 
 

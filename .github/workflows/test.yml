@@ -2,10 +2,15 @@ name: tests
 on: [push, pull_request]
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.13"]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.12"
-      - run: uv run --with pytest pytest -q tests hooks/token_economizer_patch/test_te_patch.py
+          python-version: ${{ matrix.python }}
+      - run: uv run --with pytest --with cryptography pytest -q tests hooks/token_economizer_patch/test_te_patch.py hooks/source_of_truth
