@@ -86,7 +86,6 @@ exit /b %errorlevel%
 
 :patch
 call :ensure || exit /b 1
-set "VPY=%~dp0.venv\Scripts\python.exe"
 cd /d "%~dp0hooks\token_economizer_patch"
 
 :p_stage1
@@ -116,13 +115,27 @@ echo  B  Back
 echo.
 choice /c 123456B /n /m "Choose: "
 if errorlevel 7 goto p_stage1
-if errorlevel 6 ( "%VPY%" -m pip install -q pytest & "%VPY%" -m pytest test_te_patch.py -q & goto p_again )
-if errorlevel 5 ( "%VPY%" te_patch.py off %HOST% & goto p_again )
-if errorlevel 4 ( "%VPY%" te_patch.py on %HOST% & goto p_again )
-if errorlevel 3 ( "%VPY%" te_patch.py rebuild %HOST% & goto p_again )
-if errorlevel 2 ( "%VPY%" te_patch.py update %HOST% & goto p_again )
-"%VPY%" te_patch.py status
+rem the venv path is expanded in :te, not inside these blocks: a ) in the folder name would end a block early
+if errorlevel 6 ( call :te tests & goto p_again )
+if errorlevel 5 ( call :te off & goto p_again )
+if errorlevel 4 ( call :te on & goto p_again )
+if errorlevel 3 ( call :te rebuild & goto p_again )
+if errorlevel 2 ( call :te update & goto p_again )
+call :te status
 
 :p_again
 pause
 goto p_stage2
+
+:te
+if not exist "%~dp0.venv\Scripts\python.exe" (
+  echo Cannot find the .venv of this folder. Run option 3 on the main menu ^(Set up this device^) first.
+  exit /b 1
+)
+if "%~1"=="tests" (
+  "%~dp0.venv\Scripts\python.exe" -m pip install -q pytest
+  "%~dp0.venv\Scripts\python.exe" -m pytest test_te_patch.py -q
+  exit /b
+)
+"%~dp0.venv\Scripts\python.exe" te_patch.py %~1 %HOST%
+exit /b
