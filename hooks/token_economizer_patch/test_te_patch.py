@@ -115,3 +115,22 @@ def test_install_cli_asks_first_and_checks_the_result(monkeypatch, capsys):
     monkeypatch.setattr(te_patch, "find", lambda p: "C:/x/" + p + ".exe")
     ran.clear()
     assert te_patch.install_cli() == 0 and not ran  # both installed: nothing runs
+
+
+def test_claude_install_refreshes_a_stale_marketplace_and_uninstall_of_nothing_is_ok(monkeypatch):
+    calls = []
+
+    def fake(*cmd, **k):
+        calls.append(cmd[2:4])
+        if cmd[2] == "install" and calls.count(("install", "tokeneconomizer@tokeneconomizer")) == 1:
+            te_patch.LAST_ERROR[0] = "not found in marketplace"
+            return False
+        if cmd[2] == "uninstall":
+            te_patch.LAST_ERROR[0] = "exited 1: Plugin x not found in installed plugins"
+            return False
+        return True
+
+    monkeypatch.setattr(te_patch, "run", fake)
+    host = te_patch.ClaudeHost()
+    assert host.install() and ("marketplace", "update") in calls  # first install failed, refreshed, second worked
+    assert host.uninstall() and te_patch.outcome(True) == "ok"

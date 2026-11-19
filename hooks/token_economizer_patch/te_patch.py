@@ -130,10 +130,19 @@ class ClaudeHost(Host):
 
     def install(self):
         run("claude", "plugin", "marketplace", "add", SOURCE)  # fails harmlessly when already added
+        if run("claude", "plugin", "install", KEY):
+            return True
+        # a stale local marketplace copy says "not found in marketplace": refresh it and try once more
+        run("claude", "plugin", "marketplace", "update", "tokeneconomizer")
         return run("claude", "plugin", "install", KEY)
 
     def uninstall(self):
-        return run("claude", "plugin", "uninstall", "--keep-data", KEY)
+        if run("claude", "plugin", "uninstall", "--keep-data", KEY):
+            return True
+        if "not found in installed plugins" in LAST_ERROR[0]:  # nothing to remove is fine
+            LAST_ERROR[0] = ""
+            return True
+        return False
 
     def update(self):
         run("claude", "plugin", "marketplace", "update", "tokeneconomizer")
