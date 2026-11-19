@@ -37,12 +37,44 @@ def _default_store() -> Path:
     return Path(paths.ROOT).parents[1] / ".agents" / "skills"
 
 
+def _roots_file() -> Path:
+    return Path(paths.DATA) / "skills_sync" / "roots.json"
+
+
+def default_roots() -> list:
+    return [_default_store().parents[1]]
+
+
+def load_roots() -> list:
+    """Folders to look in for project skills: the saved list, else the workspace folder."""
+    saved = _read_json(_roots_file(), None)
+    return [Path(p) for p in saved] if isinstance(saved, list) and saved else default_roots()
+
+
+def set_roots(folders: list) -> dict:
+    """Save the folders to scan. An empty list restores the default."""
+    clean = []
+    for f in folders:
+        p = os.path.normpath(str(f).strip())
+        if not str(f).strip() or not os.path.isdir(p):
+            raise ValueError(f"not a folder: {f}")
+        if p not in clean:
+            clean.append(p)
+    path = _roots_file()
+    if clean:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(clean), encoding="utf-8")
+    elif path.exists():
+        path.unlink()
+    return {"roots": [str(r) for r in load_roots()], "default": not clean}
+
+
 @dataclass
 class Env:
     claude: Path = field(default_factory=lambda: Path.home() / ".claude")
     codex: Path = field(default_factory=lambda: Path.home() / ".codex")
     store: Path = field(default_factory=_default_store)
-    roots: list = field(default_factory=lambda: [_default_store().parents[1]])
+    roots: list = field(default_factory=load_roots)
     trash: Path = field(default_factory=lambda: Path(paths.DATA) / "trash")
 
     @property
@@ -289,7 +321,7 @@ def scan_plugins(env: Env) -> list:
 
 def scan(env: Env) -> dict:
     return {"skills": scan_skills(env), "plugins": scan_plugins(env), "project": scan_projects(env),
-            "trash": trash_list(env)}
+            "trash": trash_list(env), "roots": [str(r) for r in env.roots]}
 
 
 # ---------------------------------------------------------------- skills: sync, delete, promote
@@ -664,6 +696,8 @@ def handle(action: str, body: dict, env: Env | None = None) -> dict:
         return export_bundle(env, str(body.get("folder", "")), str(body.get("password", "")), list(body.get("project_skills") or []))
     if action == "import":
         return import_bundle(env, str(body.get("path", "")), str(body.get("password", "")), dry)
+    if action == "set_roots":
+        return set_roots(list(body.get("roots") or []))
     if action == "reveal":
         return reveal(env, str(body.get("path", "")))
     if action == "restore":

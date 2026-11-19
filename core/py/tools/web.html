@@ -82,6 +82,12 @@
       <div class="wrap"><table id="sk-global"></table></div>
       <div class="row"><button type="button" id="sk-sync">Sync Claude and Codex</button></div>
     </div>
+    <div class="cmd"><h2>Folders to check</h2>
+      <p>Project skills and plugins are looked for in these folders and everything below them (a few levels deep).</p>
+      <div class="wrap"><table id="sk-roots"></table></div>
+      <div class="row"><input id="sk-root-new" placeholder="Folder path" aria-label="Folder to add"><button type="button" id="sk-root-pick">Browse...</button>
+        <button type="button" id="sk-root-add">Add</button><button type="button" id="sk-root-reset">Use default</button></div>
+    </div>
     <div class="cmd"><h2>Project-only skills</h2>
       <p>Found in project folders and not global. Tick one to include it in the export; Make global copies it to the global store and links both tools.</p>
       <div class="wrap"><table id="sk-proj"></table></div>
@@ -297,6 +303,16 @@ async function change(body, title) {
   } catch (e) { out.textContent = String(e.message || e); }
   await loadSkills();
 }
+let roots = [];
+async function saveRoots(list) {
+  const out = $("sk-out"); out.hidden = false;
+  try { await skillsCall({ action: "set_roots", roots: list }); out.textContent = "folders saved"; $("sk-root-new").value = ""; }
+  catch (e) { out.textContent = String(e.message || e); return; }
+  await loadSkills();
+}
+$("sk-root-add").onclick = () => { const v = $("sk-root-new").value.trim(); if (v) saveRoots([...roots, v]); };
+$("sk-root-reset").onclick = () => saveRoots([]);
+$("sk-root-pick").onclick = async () => { const j = await post("/api/pick-folder", {}); if (j.folder) $("sk-root-new").value = j.folder; };
 async function loadSkills() {
   const j = await skillsCall({ action: "scan" });
   fill($("sk-global"), ["Skill", "Claude", "Codex", "Status", "Source", ""], j.skills.map((s) =>
@@ -312,6 +328,9 @@ async function loadSkills() {
       change({ action: "promote_skill", path: s.path, mode: mode.value }, `Make ${s.name} global`)));
     return [tick, s.project, s.name + (s.codex_linked ? " (linked in Codex)" : ""), box];
   }));
+  roots = j.roots;
+  fill($("sk-roots"), ["Folder", ""], roots.map((r) =>
+    [r, mk("button", "Remove", () => saveRoots(roots.filter((x) => x !== r)))]));
   fill($("sk-plug"), ["Plugin", "Claude", "Codex", ""], j.plugins.map((p) => {
     const box = mk("span");
     if (!p.claude) box.append(mk("button", "Add to Claude", () => change({ action: "add_plugin", id: p.id, to: "claude" }, `Add ${p.id} to Claude`)));

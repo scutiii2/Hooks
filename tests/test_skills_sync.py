@@ -237,3 +237,15 @@ def test_reveal_only_opens_paths_the_scan_found(env, tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="not a project"):
         s.reveal(env, str(tmp_path))
     assert len(opened) == 1
+
+
+def test_roots_are_saved_validated_and_reset(env, tmp_path, monkeypatch):
+    monkeypatch.setattr(s.paths, "DATA", str(tmp_path / "data"))
+    other = tmp_path / "other"
+    other.mkdir()
+    assert s.set_roots([str(other), str(other)])["roots"] == [str(other)]
+    assert s.Env().roots == [other] and s.scan(s.Env())["roots"] == [str(other)]
+    with pytest.raises(ValueError, match="not a folder"):
+        s.set_roots([str(tmp_path / "nope")])
+    assert s.Env().roots == [other]  # a rejected list changes nothing
+    assert s.set_roots([])["default"] is True and s.Env().roots == s.default_roots()
