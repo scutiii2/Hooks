@@ -14,7 +14,9 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import stat
+import sys
 import time
 import tomllib
 import zipfile
@@ -627,6 +629,19 @@ def _import_plugins(env: Env, manifest: dict, t: Trash) -> list:
 
 # ---------------------------------------------------------------- web entry
 
+def reveal(env: Env, path: str) -> dict:
+    """Show a skill or project folder in the file manager. Only paths that `scan_projects` found are opened."""
+    found = scan_projects(env)
+    known = {os.path.normcase(os.path.normpath(p)) for p in [x["path"] for x in found["skills"] + found["plugins"]]}
+    if os.path.normcase(os.path.normpath(path)) not in known:
+        raise ValueError("not a project skill or project folder found by the scan")
+    if os.name == "nt":
+        subprocess.Popen(["explorer", f"/select,{os.path.normpath(path)}"])  # explorer exits 1 even on success
+    else:
+        subprocess.Popen(["open", "-R", path] if sys.platform == "darwin" else ["xdg-open", os.path.dirname(path)])
+    return {"opened": path}
+
+
 def handle(action: str, body: dict, env: Env | None = None) -> dict:
     """Dispatch one web request. Destructive actions run only when body["dry_run"] is false."""
     env = env or Env()
@@ -649,6 +664,8 @@ def handle(action: str, body: dict, env: Env | None = None) -> dict:
         return export_bundle(env, str(body.get("folder", "")), str(body.get("password", "")), list(body.get("project_skills") or []))
     if action == "import":
         return import_bundle(env, str(body.get("path", "")), str(body.get("password", "")), dry)
+    if action == "reveal":
+        return reveal(env, str(body.get("path", "")))
     if action == "restore":
         return {"restored": restore(env, str(body.get("bucket", "")))}
     raise ValueError(f"unknown action: {action}")

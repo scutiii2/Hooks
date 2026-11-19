@@ -76,10 +76,11 @@
     <pre id="bk-out" hidden></pre>
   </section>
   <section id="skills" hidden>
+    <div class="row"><button type="button" id="sk-refresh">Refresh</button> <span>Re-scan skills, plugins and projects after changing them outside this page.</span></div>
     <div class="cmd"><h2>Global skills</h2>
       <p>Skills both tools load. Delete removes the skill from Claude and Codex (the folder goes to Trash, so it can be restored). Sync adds the missing link where a skill exists in only one tool.</p>
       <div class="wrap"><table id="sk-global"></table></div>
-      <div class="row"><button type="button" id="sk-sync">Sync Claude and Codex</button><button type="button" id="sk-refresh">Refresh</button></div>
+      <div class="row"><button type="button" id="sk-sync">Sync Claude and Codex</button></div>
     </div>
     <div class="cmd"><h2>Project-only skills</h2>
       <p>Found in project folders and not global. Tick one to include it in the export; Make global copies it to the global store and links both tools.</p>
@@ -267,6 +268,11 @@ function fill(table, head, rows) {
   }
   if (!rows.length) { const c = table.insertRow().insertCell(); c.colSpan = head.length; c.textContent = "none"; }
 }
+async function reveal(path) {
+  const out = $("sk-out"); out.hidden = false;
+  try { await skillsCall({ action: "reveal", path }); out.textContent = "opened in the file manager"; }
+  catch (e) { out.textContent = String(e.message || e); }
+}
 const statusCell = (s) => { const e = mk("span", s); e.className = s === "ok" ? "ok" : (s === "conflict" || s === "broken link") ? "bad" : "warn"; return e; };
 const planLines = (plan) => plan.map((p) => typeof p === "string" ? p : `${p.name}: ${p.action}${p.note ? " (" + p.note + ")" : ""}`);
 // Every change shows its plan first, then runs only after the user confirms.
@@ -302,7 +308,7 @@ async function loadSkills() {
     const tick = mk("input"); tick.type = "checkbox"; tick.dataset.path = s.path;
     const mode = mk("select"); for (const m of ["link", "keep", "remove"]) mode.append(new Option(m, m));
     mode.title = "what happens to the project copy: link = replace it with a link to the global one, keep, remove (to Trash)";
-    const box = mk("span"); box.append(mode, mk("button", "Make global", () =>
+    const box = mk("span"); box.append(mk("button", "Open folder", () => reveal(s.path)), mode, mk("button", "Make global", () =>
       change({ action: "promote_skill", path: s.path, mode: mode.value }, `Make ${s.name} global`)));
     return [tick, s.project, s.name + (s.codex_linked ? " (linked in Codex)" : ""), box];
   }));
@@ -315,7 +321,9 @@ async function loadSkills() {
   }));
   $("sk-pp-card").hidden = !j.project.plugins.length;
   fill($("sk-pp"), ["Project", "Plugin", "Enabled", ""], j.project.plugins.map((p) =>
-    [p.project, p.id, p.enabled ? "on" : "off", mk("button", "Make global", () => change({ action: "promote_plugin", project: p.path, id: p.id }, `Make ${p.id} global`))]));
+    [p.project, p.id, p.enabled ? "on" : "off", (() => { const box = mk("span");
+      box.append(mk("button", "Open folder", () => reveal(p.path)), mk("button", "Make global", () => change({ action: "promote_plugin", project: p.path, id: p.id }, `Make ${p.id} global`)));
+      return box; })()]));
   fill($("sk-trash"), ["When", "Items", ""], j.trash.map((t) =>
     [t.id, t.items.join(", "), mk("button", "Restore", async () => {
       if (!confirm("Put these back?\n" + t.items.join("\n"))) return;
@@ -324,7 +332,12 @@ async function loadSkills() {
       await loadSkills();
     })]));
 }
-$("sk-refresh").onclick = () => loadSkills().catch(() => {});
+$("sk-refresh").onclick = async () => {
+  const b = $("sk-refresh"); b.disabled = true; b.textContent = "Refreshing...";
+  try { await loadSkills(); $("sk-out").hidden = true; }
+  catch (e) { $("sk-out").hidden = false; $("sk-out").textContent = String(e.message || e); }
+  b.disabled = false; b.textContent = "Refresh";
+};
 $("sk-sync").onclick = () => change({ action: "sync_skills" }, "Sync skills between Claude and Codex");
 $("sk-form").onsubmit = (e) => e.preventDefault();
 $("sk-pw-form").onsubmit = (e) => e.preventDefault();

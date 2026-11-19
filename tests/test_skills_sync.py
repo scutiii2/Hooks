@@ -227,3 +227,13 @@ def test_link_falls_back_to_a_junction_without_symlink_privilege(env, monkeypatc
     monkeypatch.setattr(os, "symlink", denied)
     s._link(src, env.claude / "skills" / "jn")
     assert s._isjunction(env.claude / "skills" / "jn") and (env.claude / "skills" / "jn" / "SKILL.md").is_file()
+
+
+def test_reveal_only_opens_paths_the_scan_found(env, tmp_path, monkeypatch):
+    opened = []
+    monkeypatch.setattr(s.subprocess, "Popen", lambda cmd, *a, **k: opened.append(cmd))
+    proj = skill(tmp_path / "ws" / "proj" / ".agents" / "skills", "mine")
+    assert s.reveal(env, str(proj)) == {"opened": str(proj)} and len(opened) == 1
+    with pytest.raises(ValueError, match="not a project"):
+        s.reveal(env, str(tmp_path))
+    assert len(opened) == 1
