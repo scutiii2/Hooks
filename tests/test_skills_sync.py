@@ -216,3 +216,14 @@ def test_handle_defaults_to_dry_run_and_rejects_unknown(env):
     assert src.exists()
     with pytest.raises(ValueError):
         s.handle("nope", {}, env)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="junctions are Windows only")
+def test_link_falls_back_to_a_junction_without_symlink_privilege(env, monkeypatch):
+    src = skill(env.store, "jn")
+
+    def denied(*a, **k):
+        raise OSError(13, "A required privilege is not held by the client", None, 1314)
+    monkeypatch.setattr(os, "symlink", denied)
+    s._link(src, env.claude / "skills" / "jn")
+    assert s._isjunction(env.claude / "skills" / "jn") and (env.claude / "skills" / "jn" / "SKILL.md").is_file()

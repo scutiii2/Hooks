@@ -37,6 +37,18 @@ STUB = "@AGENTS.md"
 LINK_TARGET = os.path.join("..", ".agents", "skills")
 
 
+def link_dir(target, link: Path):
+    """Symlink `link` to `target` (relative targets resolve from link's folder). Windows without the
+    symlink privilege (error 1314): use a junction, which needs none."""
+    try:
+        os.symlink(target, link, target_is_directory=True)
+    except OSError as exc:
+        if os.name != "nt" or getattr(exc, "winerror", 0) != 1314:
+            raise
+        import _winapi
+        _winapi.CreateJunction(os.path.abspath(os.path.join(link.parent, target)), str(link))
+
+
 def project_dirs(cwd: Path, roots: list[Path]) -> list[Path]:
     """The session folder and its git root, when inside a watched root."""
     cwd = cwd.resolve()
@@ -64,11 +76,11 @@ def unify_skills(project: Path) -> tuple[list[str], list[str]]:
         elif not (agents.is_dir() and not agents.is_symlink()):
             return [], []
         claude.parent.mkdir(exist_ok=True)
-        os.symlink(LINK_TARGET, claude, target_is_directory=True)
+        link_dir(LINK_TARGET, claude)
     except OSError as exc:
         if moved:
             agents.rename(claude)  # put the folder back; a half-done move would hide the skills
-        return [], [f"{project.name}: cannot link .claude/skills ({exc}); on Windows turn on Developer Mode."]
+        return [], [f"{project.name}: cannot link .claude/skills ({exc})."]
     action = "moved .claude/skills to .agents/skills and linked it back" if moved else "linked .claude/skills to .agents/skills"
     return [f"{project.name}: {action}."], []
 
@@ -93,10 +105,10 @@ def link_codex_skills(project: Path, codex: Path | None = None) -> tuple[list[st
             warnings.append(f"{skill.name}: ~/.codex/skills has a real folder; delete it so the link can replace it.")
             continue
         try:
-            os.symlink(skill.resolve(), target, target_is_directory=True)
+            link_dir(skill.resolve(), target)
             changes.append(f"linked ~/.codex/skills/{skill.name} to {project.name}/.agents/skills/{skill.name}.")
         except OSError as exc:
-            warnings.append(f"{skill.name}: cannot link into ~/.codex/skills ({exc}); on Windows turn on Developer Mode.")
+            warnings.append(f"{skill.name}: cannot link into ~/.codex/skills ({exc}).")
     return changes, warnings
 
 

@@ -100,7 +100,13 @@ def _link(target: Path, link: Path) -> None:
     try:
         os.symlink(target, link, target_is_directory=True)
     except OSError as e:
-        raise ValueError(f"cannot link {link} ({e}); on Windows turn on Developer Mode") from None
+        if os.name == "nt" and getattr(e, "winerror", 0) == 1314:  # no symlink privilege: a junction needs none
+            try:
+                import _winapi
+                return _winapi.CreateJunction(str(target), str(link))
+            except OSError as j:
+                e = j
+        raise ValueError(f"cannot link {link} ({e})") from None
 
 
 def _read_json(path: Path, default):

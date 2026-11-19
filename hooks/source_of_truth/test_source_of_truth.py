@@ -106,5 +106,24 @@ class SourceOfTruthTest(unittest.TestCase):
         self.assertEqual((self.codex / "alpha" / "SKILL.md").read_text(), "x")
 
 
+@unittest.skipUnless(os.name == "nt", "junctions are Windows only")
+class LinkDirTest(unittest.TestCase):
+    def test_junction_when_symlinks_are_not_allowed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "real").mkdir()
+            (root / "real" / "f.txt").write_text("x")
+            (root / "sub").mkdir()
+
+            def denied(*args, **kwargs):
+                raise OSError(13, "privilege", None, 1314)
+            saved, os.symlink = os.symlink, denied
+            try:
+                h.link_dir(os.path.join("..", "real"), root / "sub" / "l")
+            finally:
+                os.symlink = saved
+            self.assertEqual((root / "sub" / "l" / "f.txt").read_text(), "x")
+
+
 if __name__ == "__main__":
     unittest.main()

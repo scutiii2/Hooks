@@ -40,4 +40,4 @@ py source_of_truth.py "D:/User/Documents/Programming/Python/Citadel"   # run by 
 py -m unittest test_source_of_truth                                    # from this folder
 ```
 
-Needs Python 3.11+ and, on Windows, Developer Mode for native symlinks. To watch another root, change `ROOTS` in `source_of_truth.py`.
+Needs Python 3.11+ and, on Windows, Developer Mode for symlinks (without it, links are junctions). To watch another root, change `ROOTS` in `source_of_truth.py`.
