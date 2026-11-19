@@ -106,6 +106,9 @@ class Host:
     def install(self) -> bool:
         """Add the marketplace when this machine lacks it, refresh it when it has it, then add the plugin.
         A broken marketplace copy is dropped and added again once."""
+        if not find(self.name):  # one clear line instead of the same error for every step
+            LAST_ERROR[0] = f"'{self.name}' not found on PATH (install it: te_patch.py install-cli {self.name})"
+            return False
         why = []
 
         def step(label, ok):
@@ -461,7 +464,8 @@ def main(argv: list[str]) -> int:
         for h in chosen:  # clean reinstall: uninstall, then ensure() installs and patches
             for tg, p in h.targets():
                 remove(tg, p)
-            print(f"{h.name} uninstall {outcome(h.uninstall())}")
+            if find(h.name):  # without the CLI there is nothing to uninstall; ensure() says how to get it
+                print(f"{h.name} uninstall {outcome(h.uninstall())}")
             print("\n".join(ensure([h])) or "nothing to do")
     elif cmd == "update":
         for h in chosen:
