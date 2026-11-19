@@ -111,9 +111,11 @@ echo  3  Rebuild (uninstall, reinstall from marketplace + apply patch)
 echo  4  Turn ON
 echo  5  Turn OFF
 echo  6  Run tests
+echo  I  Install the %HOST% CLI ^(when it is missing^)
 echo  B  Back
 echo.
-choice /c 123456B /n /m "Choose: "
+choice /c 123456BI /n /m "Choose: "
+if errorlevel 8 ( call :te install-cli & goto p_again )
 if errorlevel 7 goto p_stage1
 rem the venv path is expanded in :te, not inside these blocks: a ) in the folder name would end a block early
 if errorlevel 6 ( call :te tests & goto p_again )

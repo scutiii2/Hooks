@@ -13,6 +13,7 @@ Code, Codex) this script installs the plugin when it is missing, then applies th
     te_patch.py update [claude|codex]   remove patch, update from the marketplace, re-apply
     te_patch.py rebuild [claude|codex]  uninstall, reinstall from the marketplace, apply the patch
     te_patch.py refresh      rebuild the patch from the git diff in the Claude marketplace clone
+    te_patch.py install-cli [claude|codex] [--yes]   install the CLI with its official installer, when it is missing
 
 On/off uses each host's own flag: `enabledPlugins` in Claude's settings.json, and
 `[plugins."tokeneconomizer@tokeneconomizer"] enabled` in Codex's config.toml. A host whose flag
@@ -23,6 +24,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -41,11 +43,41 @@ CLONE = CLAUDE / "plugins" / "marketplaces" / "tokeneconomizer"
 NO_WINDOW = 0x08000000 if os.name == "nt" else 0  # under pythonw a console child (git) would open a terminal window
 
 
+# where the official installers put `claude` and `codex` (the Codex one: %LOCALAPPDATA%\Programs\OpenAI\Codex\bin on Windows)
+LOCAL_BIN = os.pathsep.join([str(Path.home() / ".local" / "bin"), str(Path.home() / ".codex" / "bin"),
+                             str(Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Programs" / "OpenAI" / "Codex" / "bin")])
+
+
+def find(program: str) -> str | None:
+    """Full path of a program: PATH first (with PATHEXT, so claude.cmd works), then ~/.local/bin and ~/.codex/bin,
+    which a fresh install has not added to this shell's PATH yet."""
+    return shutil.which(program) or shutil.which(program, path=LOCAL_BIN)
+
+
+LAST_ERROR = [""]  # why the latest run() failed, for the FAILED lines
+
+
 def run(*cmd: str, cwd: Path | None = None, timeout: int = 300) -> bool:
-    try:
-        return subprocess.run(cmd, cwd=cwd, capture_output=True, timeout=timeout, creationflags=NO_WINDOW).returncode == 0
-    except (OSError, subprocess.SubprocessError):
+    """Run a command; False on any failure, with the reason in LAST_ERROR. The program is looked up with
+    shutil.which because a bare `claude` is often claude.cmd (an npm install), which CreateProcess cannot find."""
+    LAST_ERROR[0] = ""
+    exe = find(cmd[0])
+    if not exe:
+        LAST_ERROR[0] = f"'{cmd[0]}' not found on PATH" + (f" (install it: te_patch.py install-cli {cmd[0]})" if cmd[0] in CLI_INSTALLERS else "")
         return False
+    try:
+        done = subprocess.run([exe, *cmd[1:]], cwd=cwd, capture_output=True, timeout=timeout, creationflags=NO_WINDOW)
+    except (OSError, subprocess.SubprocessError) as e:
+        LAST_ERROR[0] = f"{' '.join(cmd[:3])}: {type(e).__name__}: {e}"[:300]
+        return False
+    if done.returncode:
+        tail = (done.stderr or done.stdout).decode("utf-8", "replace").strip().splitlines()[-3:]
+        LAST_ERROR[0] = f"{' '.join(cmd[:3])} exited {done.returncode}: {' | '.join(tail)}"[:300]
+    return done.returncode == 0
+
+
+def outcome(ok: bool) -> str:
+    return "ok" if ok else "FAILED" + (f" ({LAST_ERROR[0]})" if LAST_ERROR[0] else "")
 
 
 class Host:
@@ -219,7 +251,8 @@ def ensure(hosts=HOSTS) -> list[str]:
         if not h.enabled():
             continue
         if not h.installed():
-            notes.append(f"TokenEconomizer {'installed' if h.install() else 'install FAILED'} for {h.name}.")
+            ok = h.install()
+            notes.append(f"TokenEconomizer {'installed' if ok else 'install ' + outcome(ok)} for {h.name}.")
         if not h.installed():
             continue
         for t, prefix in h.targets():
@@ -300,10 +333,49 @@ def hook() -> int:
     return 0
 
 
+# Official installers: (windows command, mac/linux command, docs). Both are the vendors' own one-liners.
+CLI_INSTALLERS = {
+    "claude": ("irm https://claude.ai/install.ps1 | iex", "curl -fsSL https://claude.ai/install.sh | bash",
+               "https://code.claude.com/docs/en/setup"),
+    "codex": ("irm https://chatgpt.com/codex/install.ps1 | iex", "curl -fsSL https://chatgpt.com/codex/install.sh | sh",
+              "https://github.com/openai/codex"),
+}
+
+
+def install_cli(names: list[str] | None = None, yes: bool = False) -> int:
+    """Install the Claude Code and/or Codex CLI with the vendor's official installer, after asking."""
+    code = 0
+    for name in names or list(CLI_INSTALLERS):
+        win, unix, docs = CLI_INSTALLERS[name]
+        have = find(name)
+        if have:
+            print(f"{name}: already installed: {have}")
+            continue
+        script = win if os.name == "nt" else unix
+        cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script] if os.name == "nt" else ["bash", "-c", script]
+        print(f"{name}: not installed. This runs the official installer:\n  {script}")
+        if not yes and input("Install it now? [y/N] ").strip().lower() != "y":
+            print("Skipped.")
+            code = 1
+            continue
+        if subprocess.run(cmd).returncode:
+            print(f"The installer failed; see its message above, or install by hand: {docs}")
+            code = 1
+            continue
+        found = find(name)
+        print(f"Installed: {found}" if found else f"Installed, but `{name}` is not found yet: open a new terminal and run `{name} --version`.")
+        if found and not shutil.which(name):
+            print(f"Add {os.path.dirname(found)} to your PATH to use `{name}` in every terminal.")
+        code = code or (0 if found else 1)
+    return code
+
+
 def main(argv: list[str]) -> int:
     cmd = argv[0] if argv else ""
     if not cmd:
         return hook()
+    if cmd == "install-cli":
+        return install_cli([h for h in CLI_INSTALLERS if h in argv], "--yes" in argv)
     chosen = [h for h in HOSTS if h.name in argv[1:]] or HOSTS
     if cmd == "ensure":
         try:
@@ -332,13 +404,13 @@ def main(argv: list[str]) -> int:
         for h in chosen:  # clean reinstall: uninstall, then ensure() installs and patches
             for tg, p in h.targets():
                 remove(tg, p)
-            print(f"{h.name} uninstall {'ok' if h.uninstall() else 'FAILED'}")
+            print(f"{h.name} uninstall {outcome(h.uninstall())}")
             print("\n".join(ensure([h])) or "nothing to do")
     elif cmd == "update":
         for h in chosen:
             for tg, p in h.targets():  # a clean tree lets the host update it
                 remove(tg, p)
-            print(f"{h.name} update {'ok' if h.update() else 'FAILED'}")
+            print(f"{h.name} update {outcome(h.update())}")
             print("\n".join(ensure([h])) or "patch already in place")
     elif cmd == "refresh":
         refresh()

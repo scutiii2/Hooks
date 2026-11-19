@@ -88,3 +88,30 @@ def test_ensure_installs_only_enabled_hosts(tmp_path, monkeypatch):
     notes = te_patch.ensure([on, off])
     assert on.n == 1 and off.n == 0
     assert any("installed for fake" in n for n in notes) and any("applied" in n for n in notes)
+
+
+def test_run_says_why_it_failed_and_finds_cmd_shims(tmp_path, monkeypatch):
+    assert not te_patch.run("definitely-not-a-program-xyz", "a")
+    assert "not found on PATH" in te_patch.outcome(False)
+    assert te_patch.run(__import__("sys").executable, "-c", "pass") and te_patch.outcome(True) == "ok"
+    assert not te_patch.run(__import__("sys").executable, "-c", "import sys; print('boom', file=sys.stderr); sys.exit(3)")
+    assert "exited 3" in te_patch.LAST_ERROR[0] and "boom" in te_patch.LAST_ERROR[0]
+    if te_patch.os.name == "nt":  # `claude` is often claude.cmd: found through PATHEXT
+        (tmp_path / "shim.cmd").write_text("@exit /b 0\r\n")
+        monkeypatch.setenv("PATH", str(tmp_path) + te_patch.os.pathsep + te_patch.os.environ["PATH"])
+        assert te_patch.run("shim", "x")
+
+
+def test_install_cli_asks_first_and_checks_the_result(monkeypatch, capsys):
+    ran = []
+    monkeypatch.setattr(te_patch, "find", lambda p: None)
+    monkeypatch.setattr(te_patch.subprocess, "run", lambda cmd, **k: ran.append(cmd) or type("R", (), {"returncode": 0})())
+    monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+    assert te_patch.install_cli() == 1 and not ran  # said no to both: nothing runs
+    assert capsys.readouterr().out.count("official installer") == 2
+    assert te_patch.install_cli(["codex"], yes=True) == 1 and len(ran) == 1 and "chatgpt.com/codex/install" in ran[0][-1]  # ran, still not found
+    ran.clear()
+    assert te_patch.install_cli(["claude"], yes=True) == 1 and "claude.ai/install" in ran[0][-1]
+    monkeypatch.setattr(te_patch, "find", lambda p: "C:/x/" + p + ".exe")
+    ran.clear()
+    assert te_patch.install_cli() == 0 and not ran  # both installed: nothing runs
