@@ -3,6 +3,8 @@ setlocal
 cd /d "%~dp0"
 if /i "%~1"=="web" goto webargs
 if /i "%~1"=="patch" goto patch
+if /i "%~1"=="setup" goto setup
+if /i "%~1"=="doctor" goto doctor
 
 :menu
 echo.
@@ -10,10 +12,14 @@ echo Hooks
 echo.
 echo   1  Web interface ^(opens http://127.0.0.1:8765/ in your browser^)
 echo   2  Token economizer patch ^(Claude or Codex^)
+echo   3  Set up this device ^(create .venv, install the hooks in Claude and Codex^)
+echo   4  Health check ^(is everything in place?^)
 echo   Q  Quit
 echo.
-choice /c 12Q /n /m "What do you want to do? "
-if errorlevel 3 exit /b 0
+choice /c 1234Q /n /m "What do you want to do? "
+if errorlevel 5 exit /b 0
+if errorlevel 4 goto doctor
+if errorlevel 3 goto setup
 if errorlevel 2 goto patch
 goto web
 
@@ -48,6 +54,24 @@ if errorlevel 1 (
   exit /b 1
 )
 exit /b 0
+
+:setup
+call :ensure || exit /b 1
+echo.
+echo This adds the hooks of this folder to your Claude settings.json and Codex hooks.json.
+echo Other hooks in those files stay as they are. Codex asks you to trust them with /hooks.
+choice /c YN /n /m "Install the hooks now? [Y/N] "
+if errorlevel 2 exit /b 0
+".venv\Scripts\python.exe" -m core.py.tools.manage_hooks add
+".venv\Scripts\python.exe" -m core.py.tools.manage_hooks add --host codex
+echo.
+:doctor
+call :ensure || exit /b 1
+".venv\Scripts\python.exe" -m core.py.tools.doctor
+set "RC=%errorlevel%"
+rem from the menu the window would close before you can read it
+if "%~1"=="" pause
+exit /b %RC%
 
 :patch
 call :ensure || exit /b 1

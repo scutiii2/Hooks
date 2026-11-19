@@ -108,6 +108,8 @@ If `~/.codex/hooks.json` already has hooks from before the restructure (an entry
 
 ```bat
 run.bat web              # starts the web page and opens it in your browser
+run.bat setup            # new device: creates .venv, installs the hooks in Claude and Codex (asks first)
+run.bat doctor           # health check: Python, .venv, node, hook files exist, hooks installed
 ```
 
 `run.bat web` opens `http://127.0.0.1:8765/` (`--port N` changes it). Two pages:
@@ -135,7 +137,7 @@ core/                   # shared code, one folder per language; both write the s
 │   ├── training_log.py, runlog.py    # append-only JSONL logs (rotated at 10 MB); one runs.jsonl line per hook run
 │   ├── hook_io.py, privacy.py        # payload in, tag out, skip rules
 │   ├── toggle_cli.py, run_hook.py    # shared toggle CLI; runs a hook from any working folder
-│   └── tools/                        # manage_hooks, watch_decisions, web (+ web.html), calibrate, label_review, export_training_data, log_followed
+│   └── tools/                        # manage_hooks, watch_decisions, web (+ web.html), calibrate, report, doctor, label_review, export_training_data, log_followed
 └── js/                 # for the Node hooks: paths.js, log.js, runlog.js (same data folders and log format as py; tests/test_js_core.py checks the log agrees)
 hooks/
 ├── skill_router/       # skill picker: catalog, built-ins, picker, hook, state, toggle, config.json

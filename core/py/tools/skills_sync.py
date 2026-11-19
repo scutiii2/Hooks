@@ -14,6 +14,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import time
 import tomllib
 import zipfile
@@ -61,9 +62,20 @@ def _check_plugin(plugin: str) -> str:
     return plugin
 
 
+def _isjunction(p) -> bool:
+    """os.path.isjunction needs Python 3.12; older versions: a Windows reparse point that is not a symlink."""
+    if hasattr(os.path, "isjunction"):
+        return os.path.isjunction(p)
+    try:
+        st = os.lstat(p)
+    except OSError:
+        return False
+    return bool(getattr(st, "st_file_attributes", 0) & 0x400) and not stat.S_ISLNK(st.st_mode)
+
+
 def _is_link(p: Path) -> bool:
     """A symlink or an NTFS junction (the links under ~/.claude/skills are junctions)."""
-    return p.is_symlink() or os.path.isjunction(p)
+    return p.is_symlink() or _isjunction(p)
 
 
 def _kind(p: Path) -> str | None:
@@ -80,7 +92,7 @@ def _link(target: Path, link: Path) -> None:
     """Make `link` a symlink to `target`, replacing a link that is already there."""
     if link.is_symlink():
         link.unlink()
-    elif os.path.isjunction(link):
+    elif _isjunction(link):
         os.rmdir(link)  # removes the junction, not its target
     elif link.exists():
         raise ValueError(f"{link} is a real folder; not replacing it")

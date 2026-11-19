@@ -18,6 +18,8 @@ COMMANDS = {
                  "TokenEconomizer plugin and our patch"),
     "source_of_truth": (["hooks/source_of_truth/source_of_truth.py"], "[project dir]",
                         "make AGENTS.md the one source for a project"),
+    "report": (["-m", "core.py.tools.report"], "[--days N] [--split DATE] [--hook NAME]", "runs, speed and results per hook, before/after a date"),
+    "doctor": (["-m", "core.py.tools.doctor"], "", "check that the hooks can run on this machine"),
     "web": (["-m", "core.py.tools.web"], "[--port 8765]", "web view of the logs"),
     "watch": (["-m", "core.py.tools.watch_decisions"], "[--last N]", "live decisions in the terminal"),
     "calibrate": (["-m", "core.py.tools.calibrate"], "[--since EPOCH]", "follow rate per confidence bucket"),
