@@ -18,7 +18,7 @@ from urllib.parse import parse_qs, urlparse
 
 from ..paths import DATA, ROOT
 from ..training_log import followed_log
-from . import skills_sync, transfer
+from . import report, skills_sync, transfer
 from .cli import COMMANDS, resolve as resolve_command
 from .watch_decisions import IGNORE_AFTER_SECONDS, matching_decision
 
@@ -98,6 +98,19 @@ def read_log(file: str, rows: int, prompts: bool) -> list[dict] | None:
             if "input_text" in r:
                 r["input_text"] = "(hidden)"
     return records
+
+
+def stats_for(days: int) -> dict:
+    """report.stats plus which hooks have an on/off switch and where it stands."""
+    data = report.stats(days)
+    try:
+        from hooks.skill_router import state
+        switches = {"skill_router": state.is_enabled()}
+    except Exception:  # a broken switch must not hide the numbers
+        switches = {}
+    for h in data["hooks"]:
+        h["enabled"] = switches.get(h["name"])
+    return data
 
 
 def list_commands() -> list[dict]:
@@ -180,6 +193,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, list_commands())
         if url.path == "/api/logs":
             return self._json(200, list_logs())
+        if url.path == "/api/stats":
+            try:
+                days = max(1, min(int(query.get("days", ["1"])[0]), 365))
+            except ValueError:
+                return self._json(400, {"error": "days must be a number"})
+            return self._json(200, stats_for(days))
         if url.path == "/api/tail":
             try:
                 rows = max(1, min(int(query.get("rows", ["200"])[0]), MAX_ROWS))

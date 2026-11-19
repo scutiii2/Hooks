@@ -119,3 +119,16 @@ def test_run_command_strips_quotes_and_uses_no_shell(monkeypatch):
     assert seen["argv"][-3:] == ["two words", "plain", "D:\a\b"]
     assert not seen.get("shell") and seen["timeout"] == web.RUN_TIMEOUT
     assert web.run_command("skill_pick", '"unclosed')["code"] == 2
+
+
+def test_stats_route_and_page_use_the_moss_shell(server, data):
+    base = server
+    with urllib.request.urlopen(base + "/api/stats?days=1") as r:
+        got = json.loads(r.read())
+    assert set(got) == {"days", "hooks", "totals", "follow"}
+    with pytest.raises(urllib.error.HTTPError) as e:
+        urllib.request.urlopen(base + "/api/stats?days=x")
+    assert e.value.code == 400
+    with urllib.request.urlopen(base + "/") as r:
+        page = r.read().decode()
+    assert 'class="app"' in page and "data-theme" in page and "http://" not in page and "https://" not in page  # offline: no remote scripts, fonts or images

@@ -115,9 +115,9 @@ run.bat update           # git pull --ff-only (from the menu it then restarts)
 .venv\Scripts\python.exe -m core.py.tools.report [--days N] [--split DATE] [--hook NAME] [--skills]   # per-hook runs, speed, outcomes, follow rate, before/after a date
 ```
 
-`run.bat web` opens `http://127.0.0.1:8765/` (`--port N` changes it). Two pages:
+`run.bat web` opens `http://127.0.0.1:8765/` (`--port N` changes it). The page follows the moss console style (skill `moss-console-frontend`): a collapsible sidebar (Ctrl+B), a Light / Dark / System theme, and these pages:
 
-- **Home**: the commands the CLI offers (`skill_router`, `skill_pick`, `te_patch`, `source_of_truth`, `calibrate`, `export`, `settings`), each with an arguments box and a Run button; the output shows under the card. A command stops after 120 seconds and gets no keyboard input. `web` (this server), `watch` (live terminal view) and `label` (interactive review) run from the terminal with the CLI.
+- **Overview**: 24-hour numbers (runs, skill follow rate, median time, failures), one card per hook with an OK / skipped / failed bar, and the command console (Ctrl+K filters it). The console offers the commands the CLI offers (`skill_router`, `skill_pick`, `te_patch`, `source_of_truth`, `calibrate`, `export`, `settings`), each with an arguments box and a Run button; the output shows under the card. A command stops after 120 seconds and gets no keyboard input. `web` (this server), `watch` (live terminal view) and `label` (interactive review) run from the terminal with the CLI.
 - **Backup**: export `.data/` and `.memory/` as one `hooks-backup-<time>.zip` in a folder (Browse button), or with a password as an encrypted `.hbk`. Import takes a backup file or a folder (newest backup in it; an older plain `data/` + `memory/` copy also works), overwrites same-named files and keeps the rest. With the `cryptography` package installed (`run.bat setup` offers it) the `.hbk` is AES-256-GCM with a scrypt key; without it, a stdlib-only format is used (scrypt key, HMAC-SHA256 counter-mode cipher, HMAC tag checked before decrypting), which is home-built. Both open on any device that has `cryptography`; a GCM file cannot be opened without it. Details in `core/py/tools/transfer.py`.
 - **Health**: the `doctor` check (with a Fix button for what is missing) and the `report` of runs, speed and follow rate, without opening a terminal.
 - **Skills & plugins** (`core/py/tools/skills_sync.py`): lists the global skills (real folders in the workspace `.agents/skills`, linked from `~/.claude/skills` and `~/.codex/skills`) and the plugins of both tools. Actions, each with a plan you confirm first:
@@ -151,7 +151,7 @@ hooks/
 ├── hide_plugin_windows/   # SessionStart: wraps plugin hooks so they open no terminal window (Windows)
 └── token_economizer_patch/   # reapplies my patch on TokenEconomizer after updates
 tests/                  # offline tests (`python -m pytest tests`); tests/manual/ holds real-classifier scripts (run with python -m tests.manual.<name>). The last two hooks keep their tests beside them.
-run.bat web             # web interface on 127.0.0.1, opens the browser: Home (CLI commands) and Logs
+run.bat web             # web interface on 127.0.0.1, opens the browser: Overview, Logs, Skills & plugins, Backup, Health
 .claude/                # settings.json
 CLAUDE.md, AGENTS.md    # agent instructions (CLAUDE.md adds the skill router protocol)
 .env.example            # copy to .env

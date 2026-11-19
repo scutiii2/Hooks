@@ -85,6 +85,49 @@ def summarize(hook: str, runs: list[dict], decisions: list[dict], actions: list[
     return out
 
 
+GOOD = {"use", "followed", "injected", "output", "wrapped", "notes", "applied", "ok"}
+BAD = {"failed", "error", "ignored?"}
+
+
+def outcome_class(word) -> str:
+    """'ok', 'warn' or 'bad' for a run outcome; anything that is not clearly good or bad is a skip."""
+    word = str(word or "")
+    return "bad" if word in BAD or word.startswith(("fail", "error")) else "ok" if word in GOOD else "warn"
+
+
+def stats(days: int = 1, now: float | None = None) -> dict:
+    """Numbers for the web Overview and Health pages: per hook over the last `days` (and the `days` before it), plus the follow rate."""
+    now = time.time() if now is None else now
+    start, before = now - days * DAY, now - 2 * days * DAY
+    inside = lambda rows, a, b: [r for r in rows if a <= r.get("timestamp", 0) < b]
+    decisions = load(data_path("skill_router", "decisions.jsonl"), "SKILL")
+    actions = followed_log.read_all(with_backup=True)
+    hooks, all_ms, prev_runs = [], [], 0
+    for hook in sorted(os.listdir(DATA)) if os.path.isdir(DATA) else []:
+        path = data_path(hook, "runs.jsonl")
+        if not os.path.exists(path):
+            continue
+        runs = JsonlLog(path).read_all(with_backup=True)
+        cur = inside(runs, start, now + 1)
+        prev_runs += len(inside(runs, before, start))
+        ms = [r["duration_ms"] for r in cur if isinstance(r.get("duration_ms"), (int, float))]
+        all_ms += ms
+        mix = Counter(outcome_class(r.get("outcome")) for r in cur)
+        events = Counter(r.get("event") for r in runs[-200:] if r.get("event"))
+        hooks.append({"name": hook, "event": events.most_common(1)[0][0] if events else "", "runs": len(cur),
+                      "median_ms": round(sorted(ms)[len(ms) // 2]) if ms else 0, "p95_ms": p95(ms),
+                      "ok": mix["ok"], "warn": mix["warn"], "bad": mix["bad"]})
+    followed, ignored = followed_split(inside(decisions, start, now + 1), inside(actions, start, now + 1))
+    total = len(followed) + len(ignored)
+    worst = skill_table(inside(decisions, start, now + 1), inside(actions, start, now + 1))
+    slow = max(hooks, key=lambda h: h["p95_ms"], default=None)
+    return {"days": days, "hooks": hooks,
+            "totals": {"runs": sum(h["runs"] for h in hooks), "prev_runs": prev_runs, "failed": sum(h["bad"] for h in hooks),
+                       "median_ms": round(sorted(all_ms)[len(all_ms) // 2]) if all_ms else 0,
+                       "slowest": {"name": slow["name"], "p95_ms": slow["p95_ms"]} if slow and slow["p95_ms"] else None},
+            "follow": {"followed": len(followed), "total": total, "least": worst[0] if total and worst and "no skill" not in worst[0] else ""}}
+
+
 def build(argv: list[str], now: float | None = None) -> list[str]:
     now = time.time() if now is None else now
     cols = periods(argv, now)

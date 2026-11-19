@@ -117,3 +117,18 @@ def test_te_checks_warn_and_offer_a_fix(monkeypatch):
     assert [w for w, _ in todo] == ["install the codex CLI with its official installer"]
     todo[0][1]()
     assert installed == [(["codex"], True)]
+
+
+def test_stats_counts_the_window_the_day_before_and_the_outcome_classes(data):
+    day = 86400
+    _runs(data / "hook_a" / "runs.jsonl",
+          {"timestamp": 10, "event": "Stop", "outcome": "injected", "duration_ms": 4},   # the day before
+          {"timestamp": day + 10, "event": "Stop", "outcome": "injected", "duration_ms": 4},
+          {"timestamp": day + 20, "event": "Stop", "outcome": "nothing", "duration_ms": 8},
+          {"timestamp": day + 30, "event": "Stop", "outcome": "failed", "duration_ms": 12})
+    s = report.stats(1, now=2 * day)
+    h = s["hooks"][0]
+    assert (h["name"], h["event"], h["runs"], h["ok"], h["warn"], h["bad"], h["median_ms"]) == ("hook_a", "Stop", 3, 1, 1, 1, 8)
+    assert s["totals"]["prev_runs"] == 1 and s["totals"]["failed"] == 1 and s["totals"]["slowest"]["name"] == "hook_a"
+    assert s["follow"] == {"followed": 0, "total": 0, "least": ""}
+    assert [report.outcome_class(w) for w in ("use", "skipped", "error: x", None)] == ["ok", "warn", "bad", "warn"]

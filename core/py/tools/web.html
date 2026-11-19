@@ -5,308 +5,859 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hooks</title>
 <style>
-  :root { --bg:#fafaf8; --fg:#1d1d1b; --muted:#6b6b66; --line:#deded8; --card:#fff; --accent:#2a5bd7;
-          --ok:#1a7f37; --warn:#9a6700; --bad:#cf222e; }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) { --bg:#16161a; --fg:#e6e6e3; --muted:#9a9a94; --line:#2c2c33; --card:#1e1e24;
-          --accent:#7aa2ff; --ok:#3fb950; --warn:#d29922; --bad:#ff7b72; } }
-  :root[data-theme="dark"] { --bg:#16161a; --fg:#e6e6e3; --muted:#9a9a94; --line:#2c2c33; --card:#1e1e24;
-          --accent:#7aa2ff; --ok:#3fb950; --warn:#d29922; --bad:#ff7b72; }
-  * { box-sizing: border-box; }
+  :root {
+    --bg:#f5f4ef; --panel:#ffffff; --sunken:#efeee8; --hover:#f0efe9;
+    --ink:#1b1c19; --ink-2:#55574f; --ink-3:#8a8c82;
+    --line:#e5e3db; --line-2:#d3d1c7;
+    --accent:#2f6b55; --accent-ink:#ffffff; --accent-soft:#e4eee8;
+    --ok:#2e7d4f; --ok-soft:#e2f1e7; --warn:#9a630b; --warn-soft:#f7ecd6; --bad:#b42a2a; --bad-soft:#f8e2df;
+    --shadow:0 1px 2px rgba(20,20,15,.04), 0 2px 8px rgba(20,20,15,.04);
+    --sans: "Inter", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", ui-monospace, Consolas, monospace;
+    --r-sm:6px; --r-md:10px; --r-lg:14px;
+    --scroll:#d3d0c5; --scroll-hover:#a8a598;
+    color-scheme:light;
+  }
+  :root[data-theme="dark"] {
+    --bg:#131412; --panel:#1b1c1a; --sunken:#101110; --hover:#222420;
+    --ink:#e9e8e2; --ink-2:#a9aaa0; --ink-3:#75776e;
+    --line:#2a2b28; --line-2:#3a3c36;
+    --accent:#72c19d; --accent-ink:#0c1912; --accent-soft:#1c2e25;
+    --ok:#5fc78c; --ok-soft:#18291f; --warn:#e2ab45; --warn-soft:#2d2414; --bad:#f07b6f; --bad-soft:#311b18;
+    --shadow:0 1px 2px rgba(0,0,0,.3);
+    --scroll:#363833; --scroll-hover:#55584f;
+    color-scheme:dark;
+  }
+  * { box-sizing:border-box; }
   [hidden] { display:none !important; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, sans-serif; }
-  main { max-width:1200px; margin:0 auto; padding:16px; }
-  h1 { font-size:18px; margin:0 0 12px; }
-  nav { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
-  nav button { border:1px solid var(--line); background:var(--card); color:var(--fg); padding:5px 10px;
-               border-radius:6px; cursor:pointer; font:inherit; }
-  nav button[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); font-weight:600; }
-  .bar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:10px; color:var(--muted); }
-  .bar input[type=search] { flex:1; min-width:160px; padding:5px 8px; border:1px solid var(--line);
-               border-radius:6px; background:var(--card); color:var(--fg); font:inherit; }
-  .wrap { overflow-x:auto; border:1px solid var(--line); border-radius:8px; background:var(--card); }
-  table { border-collapse:collapse; width:100%; }
-  th, td { text-align:left; padding:5px 10px; border-bottom:1px solid var(--line); white-space:nowrap;
-           max-width:420px; overflow:hidden; text-overflow:ellipsis; }
-  th { position:sticky; top:0; background:var(--card); color:var(--muted); font-weight:600; }
-  td.time, td.num { font-variant-numeric: tabular-nums; }
-  .ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); }
-  .tabs { display:flex; gap:6px; margin-bottom:14px; }
-  .tabs button { border:0; border-bottom:2px solid transparent; background:none; color:var(--muted); padding:6px 12px;
-                 cursor:pointer; font:inherit; font-size:16px; }
-  .tabs button[aria-pressed="true"] { color:var(--accent); border-color:var(--accent); font-weight:600; }
-  .cmds { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:10px; align-items:start; }
-  .cmd { border:1px solid var(--line); border-radius:8px; background:var(--card); padding:10px 12px; }
-  .cmd h2 { font-size:15px; margin:0; } .cmd p { margin:2px 0 8px; color:var(--muted); }
-  .cmd form { display:flex; gap:6px; }
-  .cmd input { flex:1; min-width:0; padding:5px 8px; border:1px solid var(--line); border-radius:6px;
-               background:var(--bg); color:var(--fg); font:inherit; }
-  .cmd button { border:1px solid var(--accent); background:var(--accent); color:var(--bg); border-radius:6px;
-                padding:5px 12px; cursor:pointer; font:inherit; }
-  .cmd pre, pre.cmd { margin:8px 0 0; padding:8px; max-height:300px; overflow:auto; white-space:pre-wrap; word-break:break-word;
-             background:var(--bg); border-radius:6px; font:12px/1.4 ui-monospace, Consolas, monospace; }
-  #backup { max-width:560px; } #backup form { margin:0; }
-  #skills { max-width:960px; } #skills .cmd { margin-bottom:12px; } #skills .cmd p { margin:4px 0 8px; }
-  #skills td button { padding:1px 8px; margin-right:4px; } #skills select { font:inherit; }
-  #skills .row { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin:6px 0; }
-  .empty { padding:24px; text-align:center; color:var(--muted); }
+  html, body { height:100%; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 var(--sans); -webkit-font-smoothing:antialiased; }
+  button, input, select { font:inherit; color:inherit; }
+  code, .mono { font-family:var(--mono); font-size:12.5px; }
+  svg.i { width:16px; height:16px; flex:none; stroke:currentColor; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+
+  /* ---------- scrollbars (match the theme) ---------- */
+  ::-webkit-scrollbar { width:10px; height:10px; }
+  ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background:transparent; }
+  ::-webkit-scrollbar-thumb { background-color:var(--scroll); border:3px solid transparent; background-clip:padding-box; border-radius:10px; }
+  ::-webkit-scrollbar-thumb:hover { background-color:var(--scroll-hover); }
+  ::-webkit-scrollbar-thumb:active { background-color:var(--ink-3); }
+  ::-webkit-scrollbar-button { display:none; width:0; height:0; }
+  @supports not selector(::-webkit-scrollbar) { * { scrollbar-width:thin; scrollbar-color:var(--scroll) transparent; } }
+
+  /* ---------- shell ---------- */
+  .app { display:grid; grid-template-columns:auto 1fr; min-height:100vh; }
+  aside { position:sticky; top:0; z-index:10; width:236px; height:100vh; display:flex; flex-direction:column; gap:4px; padding:18px 14px;
+          border-right:1px solid var(--line); background:var(--panel); overflow-x:hidden; overflow-y:auto; white-space:nowrap;
+          transition:width .2s ease, padding .2s ease; }
+  .app.collapsed aside { width:64px; padding:18px 10px; }
+  .app.collapsed .nl { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+  .app.collapsed .brand { justify-content:center; padding:4px 0 18px; gap:0; }
+  .app.collapsed .brand > div:last-child, .app.collapsed .nav .count, .app.collapsed .side-foot .serve { display:none; }
+  .app.collapsed .nav-label { font-size:0; padding:0; height:1px; margin:10px 6px; background:var(--line); }
+  .app.collapsed .nav { justify-content:center; padding:9px 0; gap:0; }
+  .app.collapsed .nav .dot { position:absolute; top:7px; right:9px; margin:0; }
+  .app.collapsed .side-foot { padding:12px 0 2px; display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .app.collapsed .side-foot .host { margin:0; }
+  .app.collapsed .side-ctl { padding:8px 0 0; }
+  .app.collapsed .side-btn { justify-content:center; padding:9px 0; gap:0; }
+  .app.collapsed .side-btn kbd, .app.collapsed .theme-pick { display:none; }
+  .app.collapsed #theme-cycle { display:flex; }
+  .tip { position:fixed; z-index:50; padding:4px 9px; border-radius:6px; background:var(--ink); color:var(--bg); font-size:12px; white-space:nowrap;
+         pointer-events:none; opacity:0; transform:translateX(-4px); transition:opacity .12s, transform .12s; }
+  .tip.show { opacity:1; transform:none; }
+  .brand { display:flex; align-items:center; gap:10px; padding:4px 8px 18px; }
+  .brand-mark { width:30px; height:30px; border-radius:8px; display:grid; place-items:center; background:var(--ink); color:var(--bg); }
+  .brand-mark svg { width:18px; height:18px; stroke-width:2.2; }
+  .brand b { font-size:16px; letter-spacing:-.01em; } .brand small { display:block; color:var(--ink-3); font-size:11.5px; margin-top:-2px; }
+  .nav-label { font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-3); padding:12px 10px 4px; }
+  .nav { display:flex; align-items:center; gap:10px; width:100%; padding:8px 10px; border:0; border-radius:var(--r-sm);
+         background:none; color:var(--ink-2); cursor:pointer; text-align:left; transition:background .12s, color .12s; position:relative; }
+  .nav:hover { background:var(--hover); color:var(--ink); }
+  .nav[aria-current="page"] { background:var(--accent-soft); color:var(--accent); font-weight:600; }
+  .nav .count { margin-left:auto; font:11px var(--mono); color:var(--ink-3); background:var(--sunken); padding:1px 6px; border-radius:20px; }
+  .nav .dot { margin-left:auto; width:7px; height:7px; border-radius:50%; background:var(--warn); }
+  .side-foot { margin-top:auto; padding:12px 10px 2px; border-top:1px solid var(--line); font-size:12px; color:var(--ink-3); }
+  .side-foot .host { display:flex; align-items:center; gap:8px; color:var(--ink-2); margin-top:6px; }
+  .live-dot { width:7px; height:7px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 3px var(--ok-soft); }
+  .side-ctl { display:flex; flex-direction:column; gap:2px; padding:10px 0 0; margin-top:10px; border-top:1px solid var(--line); }
+  .side-btn { display:flex; align-items:center; gap:10px; width:100%; padding:8px 10px; border:0; border-radius:var(--r-sm);
+              background:none; color:var(--ink-2); cursor:pointer; text-align:left; font-size:13px; transition:background .12s, color .12s; }
+  .side-btn:hover { background:var(--hover); color:var(--ink); }
+  .side-btn:focus-visible { outline:0; box-shadow:0 0 0 3px var(--accent-soft); }
+  .side-btn kbd { margin-left:auto; }
+  #theme-cycle { display:none; }
+  .theme-pick { padding:4px 4px 6px; }
+  .theme-pick .tp-label { font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-3); padding:0 6px 6px; }
+  .theme-seg { display:grid; grid-template-columns:repeat(3, 1fr); gap:2px; padding:3px; background:var(--sunken); border:1px solid var(--line); border-radius:8px; }
+  .theme-seg button { display:flex; align-items:center; justify-content:center; gap:5px; padding:5px 2px; border:0; border-radius:6px; background:none;
+                      color:var(--ink-2); cursor:pointer; font-size:12px; transition:background .12s, color .12s; }
+  .theme-seg button svg { width:14px; height:14px; }
+  .theme-seg button:hover { color:var(--ink); }
+  .theme-seg button[aria-checked="true"] { background:var(--panel); color:var(--ink); font-weight:600; box-shadow:var(--shadow); }
+  .theme-seg button:focus-visible { outline:0; box-shadow:0 0 0 2px var(--accent); }
+  .theme-pick .tp-note { font-size:11px; color:var(--ink-3); padding:5px 6px 0; }
+  .app.collapsed #side-toggle svg { transform:scaleX(-1); }
+
+  main { min-width:0; }
+  .spacer { flex:1; }
+  .search { display:flex; align-items:center; gap:8px; width:280px; padding:6px 10px; border:1px solid var(--line); border-radius:var(--r-sm);
+            background:var(--panel); color:var(--ink-3); }
+  .search input { border:0; outline:0; background:none; flex:1; min-width:0; }
+  kbd { font:11px var(--mono); padding:1px 5px; border:1px solid var(--line-2); border-bottom-width:2px; border-radius:4px; color:var(--ink-3); }
+
+  .page { padding:28px 28px 48px; max-width:1320px; }
+  .page-head { display:flex; align-items:flex-end; gap:16px; margin-bottom:22px; }
+  .page-head h1 { margin:0; font-size:24px; letter-spacing:-.02em; line-height:1.2; }
+  .page-head p { margin:4px 0 0; color:var(--ink-2); }
+
+  /* ---------- primitives ---------- */
+  .btn { display:inline-flex; align-items:center; gap:7px; padding:7px 12px; border:1px solid var(--line-2); border-radius:var(--r-sm);
+         background:var(--panel); cursor:pointer; white-space:nowrap; transition:background .12s, border-color .12s; }
+  .btn:hover { background:var(--hover); }
+  .btn.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:600; }
+  .btn.primary:hover { filter:brightness(1.06); }
+  .btn.ghost { border-color:transparent; background:none; color:var(--ink-2); }
+  .btn.ghost:hover { background:var(--hover); color:var(--ink); }
+  .btn.danger { color:var(--bad); }
+  .btn.sm { padding:3px 9px; font-size:12.5px; }
+  .btn:disabled { opacity:.55; cursor:default; }
+  .icon-btn { width:32px; height:32px; display:grid; place-items:center; border:1px solid var(--line); border-radius:var(--r-sm);
+              background:var(--panel); cursor:pointer; color:var(--ink-2); }
+  .icon-btn:hover { color:var(--ink); background:var(--hover); }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--shadow); }
+  .card-h { display:flex; align-items:center; gap:10px; padding:16px 18px 0; }
+  .card-h h2 { margin:0; font-size:15px; letter-spacing:-.01em; }
+  .card-h .sub { color:var(--ink-3); font-size:12.5px; }
+  .card-b { padding:14px 18px 18px; }
+  .muted { color:var(--ink-3); } .ink2 { color:var(--ink-2); }
+  .pill { display:inline-flex; align-items:center; gap:6px; padding:2px 9px; border-radius:20px; font-size:12px; font-weight:600; white-space:nowrap; }
+  .pill::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .pill.ok { color:var(--ok); background:var(--ok-soft); } .pill.warn { color:var(--warn); background:var(--warn-soft); }
+  .pill.bad { color:var(--bad); background:var(--bad-soft); } .pill.off { color:var(--ink-3); background:var(--sunken); }
+  .tag { font:11.5px var(--mono); padding:1px 7px; border-radius:5px; background:var(--sunken); color:var(--ink-2); border:1px solid var(--line); }
+  .field { width:100%; padding:8px 10px; border:1px solid var(--line-2); border-radius:var(--r-sm); background:var(--panel); outline:0; }
+  .field:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .label { display:block; font-size:12px; font-weight:600; color:var(--ink-2); margin:0 0 6px; }
+  .seg { display:inline-flex; padding:3px; gap:2px; background:var(--sunken); border:1px solid var(--line); border-radius:8px; flex-wrap:wrap; }
+  .seg button { border:0; background:none; padding:4px 11px; border-radius:6px; cursor:pointer; color:var(--ink-2); font-size:13px; }
+  .seg button[aria-pressed="true"] { background:var(--panel); color:var(--ink); font-weight:600; box-shadow:var(--shadow); }
+  .switch { position:relative; width:34px; height:20px; border-radius:20px; background:var(--line-2); border:0; cursor:pointer; flex:none; transition:background .15s; }
+  .switch::after { content:""; position:absolute; top:3px; left:3px; width:14px; height:14px; border-radius:50%; background:#fff; transition:transform .15s; box-shadow:0 1px 2px rgba(0,0,0,.25); }
+  .switch[aria-checked="true"] { background:var(--accent); } .switch[aria-checked="true"]::after { transform:translateX(14px); }
+  pre.out { margin:0; padding:14px 16px; border-radius:var(--r-md); background:var(--sunken); border:1px solid var(--line);
+            font:12.5px/1.6 var(--mono); white-space:pre-wrap; word-break:break-word; max-height:300px; overflow:auto; color:var(--ink); }
+  pre.out .p { color:var(--accent); } pre.out .d { color:var(--ink-3); }
+  .callout { display:flex; gap:10px; padding:10px 12px; border-radius:var(--r-md); background:var(--warn-soft); color:var(--warn); font-size:13px; }
+  .callout.info { background:var(--accent-soft); color:var(--accent); }
+  .callout span { color:var(--ink-2); } .callout b { color:inherit; }
+
+  table.t { width:100%; border-collapse:collapse; font-size:13px; }
+  .t th { text-align:left; font-weight:600; font-size:12px; color:var(--ink-3); padding:9px 12px; border-bottom:1px solid var(--line); white-space:nowrap; background:var(--panel); position:sticky; top:0; }
+  .t td { padding:9px 12px; border-bottom:1px solid var(--line); white-space:nowrap; max-width:360px; overflow:hidden; text-overflow:ellipsis; }
+  .t tr:last-child td { border-bottom:0; }
+  .t tbody tr:hover td { background:var(--hover); }
+  .t td.num, .t td.time { font-family:var(--mono); font-size:12.5px; font-variant-numeric:tabular-nums; }
+  .t td.right, .t th.right { text-align:right; }
+  .check { color:var(--ok); } .cross { color:var(--ink-3); }
+
+  /* ---------- home ---------- */
+  .stats { display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; margin-bottom:18px; }
+  .stat { padding:14px 16px; }
+  .stat .k { font-size:12px; color:var(--ink-3); display:flex; align-items:center; gap:6px; }
+  .stat .v { font:600 24px/1.2 var(--mono); letter-spacing:-.02em; margin-top:6px; }
+  .stat .d { font-size:12px; color:var(--ink-2); margin-top:2px; }
+  .stat .d.up { color:var(--ok); }
+  .hooks { display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:12px; }
+  .hook { padding:14px; border:1px solid var(--line); border-radius:var(--r-md); background:var(--panel); display:flex; flex-direction:column; gap:10px; }
+  .hook-top { display:flex; align-items:center; gap:10px; }
+  .hook-top b { font-family:var(--mono); font-size:13px; font-weight:600; }
+  .hook-meta { display:flex; justify-content:space-between; font-size:12px; color:var(--ink-3); }
+  .hook-meta span b { color:var(--ink); font-family:var(--mono); font-weight:600; }
+  .bar { display:flex; height:6px; border-radius:6px; overflow:hidden; background:var(--sunken); }
+  .bar i { display:block; height:100%; }
+  .bar .g { background:var(--ok); } .bar .y { background:var(--warn); } .bar .r { background:var(--bad); }
+  .section-title { display:flex; align-items:center; gap:10px; margin:26px 0 12px; }
+  .section-title h2 { margin:0; font-size:15px; }
+  .legend { display:flex; align-items:center; gap:12px; margin-left:4px; padding-left:12px; border-left:1px solid var(--line); font-size:12px; color:var(--ink-2); }
+  .lg { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+  .sw { display:inline-block; width:12px; height:6px; border-radius:3px; flex:none; }
+  .sw.g { background:var(--ok); } .sw.y { background:var(--warn); } .sw.r { background:var(--bad); }
+  .help { position:relative; display:inline-flex; }
+  .help-btn { width:22px; height:22px; padding:0; display:grid; place-items:center; border:1px solid var(--line); border-radius:50%;
+              background:var(--panel); color:var(--ink-3); cursor:pointer; transition:color .12s, border-color .12s; }
+  .help-btn:hover, .help-btn[aria-expanded="true"] { color:var(--ink); border-color:var(--line-2); }
+  .help-btn:focus-visible { outline:0; box-shadow:0 0 0 3px var(--accent-soft); }
+  .help-btn svg { width:14px; height:14px; }
+  .help-pop { position:absolute; top:calc(100% + 8px); left:-10px; z-index:20; width:360px; max-width:calc(100vw - 32px); padding:14px 16px;
+              background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-md); box-shadow:0 12px 32px rgba(0,0,0,.14);
+              font-size:12.5px; line-height:1.45; color:var(--ink-2); white-space:normal; }
+  .help-pop h4 { margin:0 0 2px; font-size:13px; color:var(--ink); }
+  .help-pop > p { margin:0 0 6px; color:var(--ink-3); }
+  .help-row { display:grid; grid-template-columns:44px 1fr; gap:10px; align-items:baseline; padding:7px 0; border-top:1px solid var(--line); }
+  .help-row .sw { width:16px; }
+  .help-row b { color:var(--ink); font-weight:600; }
+  .help-row small { display:block; color:var(--ink-3); font:11.5px var(--mono); margin-top:1px; }
+  .help-pop .help-foot { margin:8px 0 0; padding-top:8px; border-top:1px solid var(--line); color:var(--ink-3); font-size:12px; }
+
+  .console { display:grid; grid-template-columns:minmax(300px, 380px) 1fr; overflow:hidden; }
+  .cmd-list { border-right:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .cmd-list .filter { padding:12px; border-bottom:1px solid var(--line); }
+  .cmd-items { overflow:auto; max-height:520px; padding:6px; }
+  .cmd-item { display:flex; gap:12px; width:100%; text-align:left; padding:10px; border:0; border-radius:var(--r-sm); background:none; cursor:pointer; align-items:flex-start; }
+  .cmd-item:hover { background:var(--hover); }
+  .cmd-item[aria-selected="true"] { background:var(--accent-soft); }
+  .cmd-item[aria-selected="true"] .ci-ic { color:var(--accent); border-color:var(--accent); }
+  .ci-ic { width:30px; height:30px; display:grid; place-items:center; border:1px solid var(--line); border-radius:8px; color:var(--ink-2); background:var(--panel); flex:none; }
+  .ci-t { font-weight:600; font-size:13.5px; } .ci-t code { font-weight:500; color:var(--ink-3); margin-left:6px; font-size:11.5px; }
+  .ci-d { color:var(--ink-2); font-size:12.5px; line-height:1.4; margin-top:1px; }
+  .cmd-detail { padding:20px 22px; display:flex; flex-direction:column; gap:16px; min-width:0; }
+  .cd-head { display:flex; gap:14px; align-items:flex-start; }
+  .cd-head h3 { margin:0; font-size:19px; letter-spacing:-.01em; }
+  .cd-head p { margin:2px 0 0; color:var(--ink-2); }
+  .runline { display:flex; gap:8px; align-items:stretch; }
+  .runline .prompt { flex:1; display:flex; align-items:center; gap:8px; padding:0 12px; border:1px solid var(--line-2); border-radius:var(--r-sm); background:var(--sunken); font-family:var(--mono); font-size:13px; min-width:0; }
+  .runline .prompt span { color:var(--accent); }
+  .runline input { border:0; outline:0; background:none; flex:1; min-width:0; font-family:var(--mono); font-size:13px; padding:9px 0; }
+  .out-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:12px; color:var(--ink-3); }
+  .out-head b { color:var(--ink); font-size:13px; }
+
+  /* ---------- logs ---------- */
+  .logpick { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+  .combo { position:relative; }
+  .combo-btn { display:flex; align-items:center; gap:10px; min-width:340px; padding:7px 10px; border:1px solid var(--line-2); border-radius:var(--r-sm);
+               background:var(--panel); cursor:pointer; text-align:left; transition:border-color .12s, box-shadow .12s; }
+  .combo-btn:hover { border-color:var(--ink-3); }
+  .combo-btn[aria-expanded="true"], .combo-btn:focus-visible { outline:0; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .combo-btn > svg:first-child { color:var(--ink-3); }
+  .combo-btn b { display:block; font:600 13px var(--mono); white-space:nowrap; }
+  .combo-btn small { display:block; color:var(--ink-3); font-size:11.5px; } .combo-btn small.stale { color:var(--warn); }
+  .combo-btn .chev { margin-left:auto; color:var(--ink-3); transition:transform .15s; }
+  .combo-btn[aria-expanded="true"] .chev { transform:rotate(180deg); }
+  .combo-pop { position:absolute; top:calc(100% + 6px); left:0; z-index:20; width:400px; max-width:calc(100vw - 32px); background:var(--panel);
+               border:1px solid var(--line-2); border-radius:var(--r-md); box-shadow:0 12px 32px rgba(0,0,0,.14); overflow:hidden; }
+  .combo-search { display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--line); color:var(--ink-3); }
+  .combo-search input { flex:1; min-width:0; border:0; outline:0; background:none; color:var(--ink); }
+  .combo-list { list-style:none; margin:0; padding:6px; max-height:320px; overflow:auto; }
+  .combo-group { padding:8px 8px 3px; font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-3); }
+  .combo-opt { display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:var(--r-sm); cursor:pointer; }
+  .combo-opt.active { background:var(--hover); }
+  .combo-opt .ck-mark { width:14px; height:14px; color:var(--accent); visibility:hidden; }
+  .combo-opt[aria-selected="true"] .ck-mark { visibility:visible; }
+  .combo-opt[aria-selected="true"] .name { color:var(--accent); font-weight:600; }
+  .combo-opt .name { font:13px var(--mono); }
+  .combo-opt .age { margin-left:auto; font-size:11.5px; color:var(--ink-3); white-space:nowrap; } .combo-opt .age.stale { color:var(--warn); }
+  .combo mark { background:var(--warn-soft); color:inherit; border-radius:2px; padding:0 1px; }
+  .combo-empty { padding:18px; text-align:center; color:var(--ink-3); }
+  .combo-foot { display:flex; align-items:center; gap:6px; padding:8px 12px; border-top:1px solid var(--line); font-size:11.5px; color:var(--ink-3); background:var(--sunken); }
+  .toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:12px; border-bottom:1px solid var(--line); }
+  .toolbar .search { width:auto; flex:1; min-width:200px; }
+  .toggle { display:inline-flex; align-items:center; gap:8px; color:var(--ink-2); font-size:13px; }
+  .tablewrap { overflow:auto; max-height:560px; }
+  .log-split { display:grid; grid-template-columns:1fr 0; transition:grid-template-columns .2s; }
+  .log-split.open { grid-template-columns:1fr 340px; }
+  .drawer { border-left:1px solid var(--line); overflow:hidden; }
+  .drawer-in { padding:16px; width:340px; }
+  .kv { display:grid; grid-template-columns:110px 1fr; gap:6px 10px; font-size:12.5px; margin-top:12px; }
+  .kv dt { color:var(--ink-3); } .kv dd { margin:0; font-family:var(--mono); word-break:break-all; }
+  .t tbody tr.sel td { background:var(--accent-soft); }
+
+  /* ---------- skills ---------- */
+  .tabs2 { display:flex; gap:2px; border-bottom:1px solid var(--line); margin-bottom:16px; }
+  .tabs2 button { border:0; background:none; padding:9px 14px; cursor:pointer; color:var(--ink-2); border-bottom:2px solid transparent; margin-bottom:-1px; display:flex; gap:8px; align-items:center; }
+  .tabs2 button[aria-selected="true"] { color:var(--ink); border-color:var(--accent); font-weight:600; }
+  .tabs2 .count { font:11px var(--mono); color:var(--ink-3); background:var(--sunken); padding:0 6px; border-radius:20px; }
+  .row-actions { display:flex; gap:4px; justify-content:flex-end; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .stack { display:flex; flex-direction:column; gap:14px; }
+  .roots li { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); font-family:var(--mono); font-size:12.5px; }
+  .roots { list-style:none; margin:0; padding:0; } .roots li:last-child { border-bottom:0; }
+  .roots li .btn { margin-left:auto; }
+
+  /* ---------- backup ---------- */
+  .drop { border:1.5px dashed var(--line-2); border-radius:var(--r-md); padding:22px; text-align:center; color:var(--ink-3); background:var(--sunken); }
+  .drop b { color:var(--ink); }
+  .inline { display:flex; gap:8px; }
+  .contents { display:flex; gap:10px; }
+  .contents div { flex:1; padding:10px 12px; border:1px solid var(--line); border-radius:var(--r-md); }
+  .contents b { font-family:var(--mono); font-size:13px; } .contents small { display:block; color:var(--ink-3); font-size:12px; }
+
+  /* ---------- health ---------- */
+  .checks { list-style:none; margin:0; padding:0; }
+  .checks li { display:flex; align-items:center; gap:12px; padding:11px 0; border-bottom:1px solid var(--line); }
+  .checks li:last-child { border-bottom:0; }
+  .ck { width:24px; height:24px; border-radius:50%; display:grid; place-items:center; flex:none; }
+  .ck.ok { background:var(--ok-soft); color:var(--ok); } .ck.bad { background:var(--bad-soft); color:var(--bad); } .ck.warn { background:var(--warn-soft); color:var(--warn); }
+  .ck svg { width:13px; height:13px; stroke-width:2.6; }
+  .checks .what { flex:1; } .checks .what small { display:block; color:var(--ink-3); font-size:12px; }
+  .hbars { display:flex; flex-direction:column; gap:10px; }
+  .hbar { display:grid; grid-template-columns:170px 1fr 70px; gap:12px; align-items:center; font-size:12.5px; }
+  .hbar code { color:var(--ink-2); }
+  .hbar .num { text-align:right; font-family:var(--mono); color:var(--ink-2); }
+  .ring { width:96px; height:96px; border-radius:50%; display:grid; place-items:center; flex:none;
+          background:conic-gradient(var(--ok) 0 var(--p), var(--sunken) var(--p) 100%); }
+  .ring div { width:74px; height:74px; border-radius:50%; background:var(--panel); display:grid; place-items:center; text-align:center; }
+  .ring b { font:600 18px var(--mono); display:block; } .ring small { font-size:11px; color:var(--ink-3); }
+
+  .foot { margin-top:28px; color:var(--ink-3); font-size:12px; }
+  .toast { position:fixed; bottom:20px; right:20px; padding:10px 14px; border-radius:var(--r-md); background:var(--ink); color:var(--bg); font-size:13px; box-shadow:0 6px 20px rgba(0,0,0,.18); opacity:0; transform:translateY(8px); transition:all .2s; pointer-events:none; }
+  .toast.show { opacity:1; transform:none; }
+
+  @media (max-width: 1080px) { .stats { grid-template-columns:repeat(2, 1fr); } .console, .grid2 { grid-template-columns:1fr; } .cmd-list { border-right:0; border-bottom:1px solid var(--line); } .log-split.open { grid-template-columns:1fr; } .drawer { border-left:0; border-top:1px solid var(--line); } }
+  @media (max-width: 760px) { .app { grid-template-columns:1fr; } aside { position:static; height:auto; flex-direction:row; flex-wrap:wrap; } .side-foot, .nav-label { display:none; } }
+  @media (max-width: 760px) { aside, .app.collapsed aside { width:auto; padding:12px; } #side-toggle, .theme-pick, .app.collapsed .theme-pick { display:none; } #theme-cycle, .app.collapsed #theme-cycle { display:flex; } .side-ctl, .app.collapsed .side-ctl { margin:0 0 0 auto; padding:0; border:0; } .side-btn, .app.collapsed .side-btn { width:auto; padding:8px; } .side-btn .nl, .app.collapsed .nl { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); } .app.collapsed .brand > div:last-child { display:block; } .app.collapsed .nav .nl { position:static; width:auto; height:auto; clip:auto; } .app.collapsed .nav { padding:8px 10px; gap:10px; } }
+  @media (max-width: 760px) { .section-title { flex-wrap:wrap; row-gap:8px; } .legend { margin-left:0; padding-left:0; border-left:0; } }
+  @media (prefers-reduced-motion: no-preference) { .page:not([hidden]) { animation:fade .25s ease-out; } @keyframes fade { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } } }
+  .grid2.health { grid-template-columns:1.1fr .9fr; }
+  @media (max-width: 1080px) { .grid2.health { grid-template-columns:1fr; } }
+  .live-dot.warn { background:var(--warn); box-shadow:0 0 0 3px var(--warn-soft); }
+  .live-dot.idle { background:var(--ink-3); box-shadow:0 0 0 3px var(--sunken); }
+  .nav .count[hidden], .nav .dot[hidden] { display:none; }
 </style>
 </head>
 <body>
-<main>
-  <h1>Hooks</h1>
-  <div class="tabs"><button id="t-home">Home</button><button id="t-logs">Logs</button><button id="t-backup">Backup</button><button id="t-skills">Skills &amp; plugins</button><button id="t-health">Health</button></div>
-  <section id="home" class="cmds"></section>
-  <section id="backup" class="cmd" hidden>
-    <h2>Import / export</h2>
-    <p>Saves <code>.data</code> (logs, state, stats) and <code>.memory</code> (labeled learning examples) as one zip file in a folder. With a password the file is encrypted (<code>.hbk</code>). Import takes a backup file, or a folder (newest backup in it) and overwrites files with the same name.</p>
-    <form id="bk-form">
-      <input id="bk-folder" placeholder="Folder (export) or backup file (import)" aria-label="Folder or backup file">
-      <button type="button" id="bk-pick">Browse...</button>
-    </form>
-    <p></p>
-    <form id="bk-pw-form">
-      <input id="bk-password" type="password" autocomplete="off" placeholder="Password (optional: encrypts the export)" aria-label="Password">
-    </form>
-    <p></p>
-    <form>
-      <button type="button" id="bk-export">Export to zip</button>
-      <button type="button" id="bk-import">Import backup</button>
-    </form>
-    <pre id="bk-out" hidden></pre>
-  </section>
-  <section id="health" hidden>
-    <div class="cmd"><h2>Health check</h2>
-      <p>Is this machine set up so the hooks can run: Python, the .venv, node, the Claude and Codex CLIs, TokenEconomizer, and the hook entries. Fix installs what is missing (a CLI, TokenEconomizer, the hooks) with the same steps as <code>run.bat</code> option 3.</p>
-      <form><button type="button" id="hl-check">Check</button> <button type="button" id="hl-fix">Fix what is missing</button></form>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-hook" viewBox="0 0 24 24"><path d="M15 3v9a5 5 0 0 1-10 0v-1"/><path d="m3 13 2-2 2 2"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-sidebar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-logs" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+  <symbol id="i-puzzle" viewBox="0 0 24 24"><path d="M10 3h4v3a2 2 0 1 0 4 0V5h3v5h-1a2 2 0 1 0 0 4h1v6h-6v-1a2 2 0 1 0-4 0v1H4v-6h1a2 2 0 1 0 0-4H4V5h6z"/></symbol>
+  <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></symbol>
+  <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.4c-.6.3-1 .8-1 1.5v.4M12 16.8v.1"/></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 3 4 14h7l-1 7 9-11h-7z"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+  <symbol id="i-stetho" viewBox="0 0 24 24"><path d="M6 3v6a4 4 0 0 0 8 0V3"/><path d="M10 13v2a5 5 0 0 0 10 0v-2"/><circle cx="20" cy="11" r="2"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11m-5-5 5 5 5-5M4 20h16"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 20V9m-5 5 5-5 5 5M4 4h16"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 9v4M12 17h0"/><path d="M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6A2 2 0 0 0 22 18L13.7 3.9a2 2 0 0 0-3.4 0z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.9-3M4 4v4h4M4 13a8 8 0 0 0 14.9 3M20 20v-4h-4"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/></symbol>
+</svg>
+
+<div class="app">
+  <aside>
+    <div class="brand">
+      <div class="brand-mark"><svg class="i"><use href="#i-hook"/></svg></div>
+      <div><b>Hooks</b><small>local control panel</small></div>
     </div>
-    <div class="cmd"><h2>Report</h2>
-      <p>Runs, speed and results per hook, and the follow rate per skill.</p>
-      <form><input id="hl-days" type="number" min="1" value="7" aria-label="Days"> days
-        <label><input type="checkbox" id="hl-skills"> per skill</label> <button type="button" id="hl-report">Report</button></form>
+    <div class="nav-label">Workspace</div>
+    <button class="nav" data-page="home" data-tip="Overview"><svg class="i"><use href="#i-home"/></svg><span class="nl">Overview</span></button>
+    <button class="nav" data-page="logs" data-tip="Logs"><svg class="i"><use href="#i-logs"/></svg><span class="nl">Logs</span><span class="count" id="n-logs" hidden></span></button>
+    <button class="nav" data-page="skills" data-tip="Skills &amp; plugins"><svg class="i"><use href="#i-puzzle"/></svg><span class="nl">Skills &amp; plugins</span><span class="count" id="n-skills" hidden></span></button>
+    <div class="nav-label">Maintenance</div>
+    <button class="nav" data-page="backup" data-tip="Backup"><svg class="i"><use href="#i-archive"/></svg><span class="nl">Backup</span></button>
+    <button class="nav" data-page="health" data-tip="Health"><svg class="i"><use href="#i-pulse"/></svg><span class="nl">Health</span><span class="dot" id="n-health" hidden></span></button>
+    <div class="side-foot">
+      <div class="serve">Serving on <code id="serve-addr">127.0.0.1</code></div>
+      <div class="host" id="host-claude" data-tip="Claude Code"><span class="live-dot idle"></span><span class="nl">Claude Code</span></div>
+      <div class="host" id="host-codex" data-tip="Codex"><span class="live-dot idle"></span><span class="nl">Codex</span></div>
     </div>
-    <pre class="cmd" id="hl-out" hidden></pre>
-  </section>
-  <section id="skills" hidden>
-    <div class="row"><button type="button" id="sk-refresh">Refresh</button> <span>Re-scan skills, plugins and projects after changing them outside this page.</span></div>
-    <div class="cmd"><h2>Global skills</h2>
-      <p>Skills both tools load. Delete removes the skill from Claude and Codex (the folder goes to Trash, so it can be restored). Sync adds the missing link where a skill exists in only one tool.</p>
-      <div class="wrap"><table id="sk-global"></table></div>
-      <div class="row"><button type="button" id="sk-sync">Sync Claude and Codex</button></div>
+    <div class="side-ctl">
+      <div class="theme-pick">
+        <div class="tp-label" id="tp-label">Theme</div>
+        <div class="theme-seg" role="radiogroup" aria-labelledby="tp-label" id="theme-seg">
+          <button role="radio" aria-checked="false" data-theme="light" title="Light"><svg class="i"><use href="#i-sun"/></svg>Light</button>
+          <button role="radio" aria-checked="false" data-theme="dark" title="Dark"><svg class="i"><use href="#i-moon"/></svg>Dark</button>
+          <button role="radio" aria-checked="false" data-theme="system" title="Follow the system setting"><svg class="i"><use href="#i-monitor"/></svg>System</button>
+        </div>
+        <div class="tp-note" id="tp-note"></div>
+      </div>
+      <button class="side-btn" id="theme-cycle" aria-label="Change theme" data-tip="Theme"><svg class="i"><use href="#i-monitor"/></svg><span class="nl">Theme</span></button>
+      <button class="side-btn" id="side-toggle" aria-label="Collapse sidebar" aria-expanded="true" data-tip="Collapse sidebar · Ctrl+B"><svg class="i"><use href="#i-sidebar"/></svg><span class="nl">Collapse</span><kbd>Ctrl B</kbd></button>
     </div>
-    <div class="cmd"><h2>Folders to check</h2>
-      <p>Project skills and plugins are looked for in these folders and everything below them (a few levels deep).</p>
-      <div class="wrap"><table id="sk-roots"></table></div>
-      <div class="row"><input id="sk-root-new" placeholder="Folder path" aria-label="Folder to add"><button type="button" id="sk-root-pick">Browse...</button>
-        <button type="button" id="sk-root-add">Add</button><button type="button" id="sk-root-reset">Use default</button></div>
-    </div>
-    <div class="cmd"><h2>Project-only skills</h2>
-      <p>Found in project folders and not global. Tick one to include it in the export; Make global copies it to the global store and links both tools.</p>
-      <div class="wrap"><table id="sk-proj"></table></div>
-    </div>
-    <div class="cmd"><h2>Plugins</h2>
-      <p>Claude Code and Codex keep separate plugin lists. Add copies a plugin to the other tool; Delete removes it from both.</p>
-      <div class="wrap"><table id="sk-plug"></table></div>
-      <div class="row"><label><input type="checkbox" id="sk-purge"> also delete the downloaded plugin files</label></div>
-    </div>
-    <div class="cmd" id="sk-pp-card" hidden><h2>Plugins switched on in projects</h2>
-      <div class="wrap"><table id="sk-pp"></table></div>
-    </div>
-    <div class="cmd"><h2>Export / import</h2>
-      <p>One zip with every global skill, the ticked project skills and the plugin list (an encrypted <code>.hbk</code> with a password). Import restores skills (old copies go to Trash) and merges plugins.</p>
-      <form id="sk-form" class="row"><input id="sk-folder" placeholder="Folder (export) or backup file (import)" aria-label="Folder or file">
-        <button type="button" id="sk-pick">Browse...</button></form>
-      <form id="sk-pw-form" class="row"><input id="sk-password" type="password" autocomplete="off" placeholder="Password (optional)" aria-label="Password"></form>
-      <div class="row"><button type="button" id="sk-export">Export</button><button type="button" id="sk-import">Import</button></div>
-    </div>
-    <div class="cmd"><h2>Trash</h2>
-      <div class="wrap"><table id="sk-trash"></table></div>
-    </div>
-    <pre id="sk-out" class="cmd" hidden></pre>
-  </section>
-  <section id="logs" hidden>
-  <nav id="tabs"></nav>
-  <div class="bar">
-    <input id="filter" type="search" placeholder="Filter rows (any text)">
-    <label><input id="prompts" type="checkbox"> show prompts</label>
-    <label><input id="live" type="checkbox" checked> live</label>
-    <span id="info"></span>
-  </div>
-  <div class="wrap"><table><thead id="head"></thead><tbody id="body"></tbody></table>
-    <div id="empty" class="empty" hidden>No rows.</div></div>
-  </section>
-</main>
+  </aside>
+
+  <main>
+    <!-- ================= OVERVIEW ================= -->
+    <section class="page" id="p-home">
+      <div class="page-head">
+        <div><h1>Overview</h1><p>What your hooks did in the last 24 hours, and a console to run any tool.</p></div>
+        <div class="spacer"></div>
+        <button class="btn" data-go="health"><svg class="i"><use href="#i-stetho"/></svg>Run health check</button>
+      </div>
+
+      <div class="stats" id="stats"></div>
+
+      <div class="section-title"><h2>Hooks</h2><span class="muted" id="hooks-n"></span>
+        <div class="legend" aria-label="Run bar colors">
+          <span class="lg"><i class="sw g"></i>OK</span><span class="lg"><i class="sw y"></i>Skipped</span><span class="lg"><i class="sw r"></i>Failed</span>
+          <div class="help">
+            <button class="help-btn" aria-expanded="false" aria-controls="hooks-help" aria-label="What the colors mean" title="What the colors mean"><svg class="i"><use href="#i-help"/></svg></button>
+            <div class="help-pop" id="hooks-help" role="dialog" aria-label="What the colors mean" hidden>
+              <h4>Reading a hook card</h4>
+              <p>The bar splits the hook's runs in the last 24 hours by outcome. Hover a bar for the exact counts.</p>
+              <div class="help-row"><i class="sw g"></i><div><b>OK</b> · the hook did its job<small>use · followed · injected · wrapped · applied · output · notes</small></div></div>
+              <div class="help-row"><i class="sw y"></i><div><b>Skipped</b> · ran, chose to do nothing<small>skipped · nothing · passthrough · fallback · disabled · pending · repeat · no_patch</small></div></div>
+              <div class="help-row"><i class="sw r"></i><div><b>Failed</b> · the hook hit an error<small>failed · error · ignored? · details in core/failures.jsonl</small></div></div>
+              <div class="help-row"><span class="pill ok">on</span><div><b>On</b> · installed and enabled</div></div>
+              <div class="help-row"><span class="pill off">off</span><div><b>Off</b> · installed, switched off (only hooks with a switch show this)</div></div>
+              <p class="help-foot">Same colors in Logs and Health. Amber never means broken: check red first.</p>
+            </div>
+          </div>
+        </div>
+        <div class="spacer"></div><button class="btn ghost sm" data-go="logs">All logs →</button></div>
+      <div class="hooks" id="hooks"></div>
+
+      <div class="section-title"><h2>Command console</h2><span class="muted">Same names as <code>run.bat</code> and the CLI</span></div>
+      <div class="card console">
+        <div class="cmd-list">
+          <div class="filter"><label class="search" style="width:100%"><svg class="i"><use href="#i-search"/></svg><input id="cmd-filter" placeholder="Filter commands" aria-label="Filter commands"></label></div>
+          <div class="cmd-items" id="cmd-items" role="listbox" aria-label="Commands"></div>
+        </div>
+        <div class="cmd-detail" id="cmd-detail"></div>
+      </div>
+    </section>
+
+    <!-- ================= LOGS ================= -->
+    <section class="page" id="p-logs" hidden>
+      <div class="page-head">
+        <div><h1>Logs</h1><p>Every <code>.data/&lt;hook&gt;/*.jsonl</code> file, newest rows first. Prompt text stays hidden unless you ask.</p></div>
+      </div>
+      <div class="logpick">
+        <span class="label" style="margin:0">Log file</span>
+        <div class="combo" id="lf-combo">
+          <button class="combo-btn" id="lf-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Choose log file"></button>
+          <div class="combo-pop" id="lf-pop" hidden>
+            <label class="combo-search"><svg class="i"><use href="#i-search"/></svg><input id="lf-q" placeholder="Search log files" aria-label="Search log files" role="combobox" aria-controls="lf-list" aria-expanded="true" autocomplete="off"></label>
+            <ul class="combo-list" id="lf-list" role="listbox"></ul>
+            <div class="combo-foot"><span id="lf-count"></span><span class="spacer"></span><kbd>↑</kbd><kbd>↓</kbd> move <kbd>Enter</kbd> open <kbd>Esc</kbd> close</div>
+          </div>
+        </div>
+        <span class="muted" style="font-size:12.5px">Type to search by hook or file name</span>
+      </div>
+      <div class="card" style="overflow:hidden">
+        <div class="toolbar">
+          <label class="search"><svg class="i"><use href="#i-search"/></svg><input id="log-filter" placeholder="Filter rows (any text)" aria-label="Filter rows"></label>
+          <div class="seg" id="outcome-seg"><button aria-pressed="true" data-o="">All</button><button aria-pressed="false" data-o="ok">OK</button><button aria-pressed="false" data-o="warn">Skipped</button><button aria-pressed="false" data-o="bad">Failed</button></div>
+          <span class="toggle"><button class="switch" id="sw-prompts" role="switch" aria-checked="false" aria-label="Show prompts"></button>Show prompts</span>
+          <span class="toggle"><button class="switch" id="sw-live" role="switch" aria-checked="true" aria-label="Live"></button>Live</span>
+          <span class="muted mono" id="log-info"></span>
+        </div>
+        <div class="log-split" id="log-split">
+          <div class="tablewrap"><table class="t"><thead id="log-head"></thead><tbody id="log-body"></tbody></table></div>
+          <div class="drawer"><div class="drawer-in" id="drawer"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SKILLS ================= -->
+    <section class="page" id="p-skills" hidden>
+      <div class="page-head">
+        <div><h1>Skills &amp; plugins</h1><p>Keep Claude Code and Codex in step. Every change shows its plan first; removed items go to Trash.</p></div>
+        <div class="spacer"></div>
+        <button class="btn" id="sk-refresh"><svg class="i"><use href="#i-refresh"/></svg>Refresh</button>
+        <button class="btn primary" id="sk-sync"><svg class="i"><use href="#i-refresh"/></svg>Sync Claude ⇄ Codex</button>
+      </div>
+      <div class="tabs2" role="tablist" id="sk-tabs">
+        <button role="tab" aria-selected="true" data-t="global">Global skills <span class="count" id="c-global">…</span></button>
+        <button role="tab" aria-selected="false" data-t="project">Project-only <span class="count" id="c-project">…</span></button>
+        <button role="tab" aria-selected="false" data-t="plugins">Plugins <span class="count" id="c-plugins">…</span></button>
+        <button role="tab" aria-selected="false" data-t="folders">Folders &amp; transfer</button>
+        <button role="tab" aria-selected="false" data-t="trash">Trash <span class="count" id="c-trash">…</span></button>
+      </div>
+      <div id="sk-panel"></div>
+      <pre class="out" id="sk-out" hidden style="margin-top:16px"></pre>
+    </section>
+
+    <!-- ================= BACKUP ================= -->
+    <section class="page" id="p-backup" hidden>
+      <div class="page-head">
+        <div><h1>Backup</h1><p>One zip of your local state. Add a password and it becomes an encrypted <code>.hbk</code>.</p></div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-h"><svg class="i"><use href="#i-download"/></svg><h2>Export</h2></div>
+          <div class="card-b stack">
+            <div class="contents">
+              <div><b>.data</b><small>logs, state, stats</small></div>
+              <div><b>.memory</b><small>labeled learning examples</small></div>
+            </div>
+            <div><span class="label">Save to folder</span>
+              <div class="inline"><input class="field mono" id="bk-folder" placeholder="Folder for the backup file" aria-label="Folder for the backup"><button class="btn" id="bk-pick"><svg class="i"><use href="#i-folder"/></svg>Browse</button></div></div>
+            <div><span class="label">Password <span class="muted" style="font-weight:400">· optional, encrypts the file</span></span>
+              <input class="field" type="password" id="bk-pw" placeholder="Leave empty for a plain .zip" autocomplete="off"></div>
+            <div class="callout info"><svg class="i"><use href="#i-lock"/></svg><span id="bk-hint">Output: <b>.zip</b> (no password)</span></div>
+            <div><button class="btn primary" id="bk-export"><svg class="i"><use href="#i-download"/></svg>Export backup</button></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><svg class="i"><use href="#i-upload"/></svg><h2>Import</h2></div>
+          <div class="card-b stack">
+            <div><span class="label">Backup file, or a folder</span>
+              <div class="inline"><input class="field mono" id="bk-source" placeholder="A .zip or .hbk file, or a folder (newest backup in it)" aria-label="Backup file or folder"><button class="btn" id="bk-source-pick"><svg class="i"><use href="#i-folder"/></svg>Browse</button></div></div>
+            <div><span class="label">Password <span class="muted" style="font-weight:400">· only for .hbk files</span></span><input class="field" type="password" id="bk-pw2" autocomplete="off"></div>
+            <div class="callout"><svg class="i"><use href="#i-alert"/></svg><span><b>Overwrites same-named files</b> in .data and .memory. Other files stay.</span></div>
+            <div><button class="btn" id="bk-import"><svg class="i"><use href="#i-upload"/></svg>Import backup</button></div>
+          </div>
+        </div>
+      </div>
+      <pre class="out" id="bk-out" hidden style="margin-top:16px"></pre>
+    </section>
+
+    <!-- ================= HEALTH ================= -->
+    <section class="page" id="p-health" hidden>
+      <div class="page-head">
+        <div><h1>Health</h1><p>Can this machine run the hooks? Python, the venv, node, both CLIs, TokenEconomizer and the hook entries.</p></div>
+        <div class="spacer"></div>
+        <button class="btn" id="hl-check"><svg class="i"><use href="#i-refresh"/></svg>Check again</button>
+        <button class="btn primary" id="hl-fix"><svg class="i"><use href="#i-gear"/></svg>Fix what is missing</button>
+      </div>
+      <div class="grid2 health">
+        <div class="card">
+          <div class="card-h"><h2>Checks</h2><span class="sub" id="hl-when">not checked yet</span></div>
+          <div class="card-b" style="padding-top:4px"><ul class="checks" id="checks"></ul></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h2>Report</h2><div class="spacer"></div>
+            <div class="seg" id="days-seg"><button aria-pressed="false" data-d="1">1d</button><button aria-pressed="true" data-d="7">7d</button><button aria-pressed="false" data-d="30">30d</button></div></div>
+          <div class="card-b stack">
+            <div style="display:flex; gap:18px; align-items:center">
+              <div class="ring" id="ring" style="--p:0%"><div><span><b id="ring-v">-</b><small>followed</small></span></div></div>
+              <div class="ink2" style="font-size:13px" id="ring-text"></div>
+            </div>
+            <div><span class="label">Runs per hook</span><div class="hbars" id="hbars"></div></div>
+            <div class="inline" style="align-items:center">
+              <span class="toggle"><button class="switch" id="hl-skills" role="switch" aria-checked="false" aria-label="Per skill"></button>Per skill</span>
+              <div class="spacer"></div>
+              <button class="btn sm" id="hl-report">Full report</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <pre class="out" id="hl-out" hidden style="margin-top:16px"></pre>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
 <script>
-const $ = (id) => document.getElementById(id);
-const GOOD = new Set(["use", "followed", "injected", "output", "wrapped", "notes", "applied"]);
-const WARN = new Set(["fallback", "skipped", "unprompted", "pending", "disabled", "nothing", "no_patch"]);
-const BAD = new Set(["failed", "error", "ignored?"]);
-const HIDDEN = new Set(["timestamp"]);
-let current = null, logs = [], timer = null;
-
-function cls(key, value) {
-  if (!["outcome", "decision", "status"].includes(key)) return "";
-  return GOOD.has(value) ? "ok" : WARN.has(value) ? "warn" : BAD.has(value) ? "bad" : "";
-}
-function show(value) {
-  if (value === null || value === undefined) return "";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
-}
-function store(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
-function load(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
-
-async function getJson(url) {
-  const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error(r.status);
-  return r.json();
-}
-
-function ago(s) {
-  return s < 60 ? "now" : s < 3600 ? Math.floor(s / 60) + "m" : s < 86400 ? Math.floor(s / 3600) + "h" : Math.floor(s / 86400) + "d";
-}
-
-async function refreshTabs() {
-  logs = await getJson("/api/logs");
-  const tabs = $("tabs");
-  tabs.replaceChildren();
-  for (const { file, modified } of logs) {
-    const b = document.createElement("button");
-    const age = Date.now() / 1000 - modified;
-    b.textContent = file.replace(".jsonl", "") + " · " + ago(age);
-    b.title = "last written " + new Date(modified * 1000).toLocaleString();
-    if (age > 3 * 86400 && file.endsWith("runs.jsonl")) b.title += " (no runs for 3+ days: is the hook still installed?)";
-    b.setAttribute("aria-pressed", file === current);
-    b.onclick = () => { current = file; store("log", file); refreshTabs().then(refreshRows); };
-    tabs.append(b);
-  }
-}
-
-async function refreshRows() {
-  if (!current) return;
-  let records;
-  try {
-    records = await getJson(`/api/tail?file=${encodeURIComponent(current)}&rows=200&prompts=${$("prompts").checked ? 1 : 0}`);
-  } catch (e) { $("info").textContent = "server not reachable"; return; }
-  const needle = $("filter").value.toLowerCase();
-  const rows = records.filter((r) => !needle || JSON.stringify(r).toLowerCase().includes(needle)).reverse();
-  const cols = ["time"];
-  for (const r of records) for (const k of Object.keys(r)) if (!HIDDEN.has(k) && !cols.includes(k)) cols.push(k);
-  $("head").replaceChildren(Object.assign(document.createElement("tr"), {}));
-  for (const c of cols) { const th = document.createElement("th"); th.textContent = c; $("head").firstChild.append(th); }
-  const body = $("body");
-  body.replaceChildren();
-  for (const r of rows) {
-    const tr = document.createElement("tr");
-    for (const c of cols) {
-      const td = document.createElement("td");
-      const v = c === "time" ? new Date(r.timestamp * 1000).toLocaleTimeString() : r[c];
-      td.textContent = show(v);
-      td.title = td.textContent;
-      td.className = (c === "time" ? "time " : typeof v === "number" ? "num " : "") + cls(c, v);
-      tr.append(td);
-    }
-    body.append(tr);
-  }
-  $("empty").hidden = rows.length > 0;
-  $("info").textContent = `${rows.length} of ${records.length} rows, ${new Date().toLocaleTimeString()}`;
-}
-
-function schedule() {
-  clearInterval(timer);
-  if ($("live").checked) timer = setInterval(refreshRows, 2000);
-}
-
-$("filter").oninput = refreshRows;
-$("prompts").onchange = refreshRows;
-$("live").onchange = schedule;
-
-async function buildHome() {
-  for (const c of await getJson("/api/commands")) {
-    const box = document.createElement("div");
-    box.className = "cmd";
-    const h = document.createElement("h2"); h.textContent = c.name;
-    const p = document.createElement("p"); p.textContent = c.purpose;
-    const form = document.createElement("form");
-    const input = document.createElement("input");
-    input.placeholder = c.usage;
-    input.setAttribute("aria-label", "arguments for " + c.name);
-    const go = document.createElement("button"); go.textContent = "Run";
-    const out = document.createElement("pre"); out.hidden = true;
-    form.append(input, go);
-    form.onsubmit = async (e) => {
-      e.preventDefault();
-      go.disabled = true; out.hidden = false; out.textContent = "running...";
-      try {
-        const r = await fetch("/api/run", { method: "POST", headers: { "Content-Type": "application/json" },
-                                            body: JSON.stringify({ name: c.name, args: input.value }) });
-        const j = await r.json();
-        out.textContent = j.error ? j.error : (j.output.trim() || "(no output)") + (j.code ? "\n[exit " + j.code + "]" : "");
-      } catch (err) { out.textContent = "server not reachable"; }
-      go.disabled = false;
-    };
-    box.append(h, p, form, out);
-    $("home").append(box);
-  }
-}
-
+(() => {
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const ico = (n) => `<svg class="i"><use href="#i-${n}"/></svg>`;
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const store = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+const load = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2200); }
+async function getJson(url) { const r = await fetch(url, { cache: "no-store" }); if (!r.ok) throw new Error(r.status); return r.json(); }
 async function post(url, body) {
   const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   return r.json();
 }
-$("bk-folder").value = load("backup-folder") || "";
-$("bk-form").onsubmit = (e) => e.preventDefault();
-$("bk-pw-form").onsubmit = (e) => e.preventDefault();
-$("bk-pick").onclick = async () => {
-  $("bk-pick").disabled = true;
-  try {
-    const j = await post("/api/pick-folder", {});
-    if (j.folder) $("bk-folder").value = j.folder;
-  } catch (e) { $("bk-out").hidden = false; $("bk-out").textContent = "server not reachable"; }
-  $("bk-pick").disabled = false;
-};
-async function transfer(kind) {
-  const folder = $("bk-folder").value;
-  const out = $("bk-out");
-  out.hidden = false;
-  if (kind === "import" && !confirm("Import overwrites same-named files in .data and .memory. Continue?")) { out.textContent = "cancelled"; return; }
-  out.textContent = "working...";
-  store("backup-folder", folder);
-  try {
-    const j = await post("/api/" + kind, { folder, password: $("bk-password").value });
-    out.textContent = j.error ? j.error : `${kind} done: ${j.files.data} data files, ${j.files.memory} memory files\n${j.files.file}`;
-  } catch (e) { out.textContent = "server not reachable"; }
-}
-$("bk-export").onclick = () => transfer("export");
-$("bk-import").onclick = () => transfer("import");
+const sw = (el, fn) => { el.onclick = () => { el.setAttribute("aria-checked", el.getAttribute("aria-checked") !== "true"); fn && fn(); }; };
+const on = (el) => el.getAttribute("aria-checked") === "true";
+const seg = (box, fn) => $$("button", box).forEach((b) => b.onclick = () => { $$("button", box).forEach((x) => x.setAttribute("aria-pressed", x === b)); fn(b); });
+const ago = (s) => s < 60 ? "just now" : s < 3600 ? Math.floor(s / 60) + "m ago" : s < 86400 ? Math.floor(s / 3600) + "h ago" : Math.floor(s / 86400) + "d ago";
+const unreachable = "server not reachable";
 
-// ---- Skills & plugins
-const skillsCall = async (body) => { const j = await post("/api/skills", body); if (j.error) throw new Error(j.error); return j; };
-function mk(tag, text, fn) { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (fn) { e.type = "button"; e.onclick = fn; } return e; }
-function fill(table, head, rows) {
-  table.replaceChildren();
-  const h = table.insertRow();
-  for (const x of head) h.append(mk("th", x));
-  for (const r of rows) {
-    const tr = table.insertRow();
-    for (const c of r) { const cell = tr.insertCell(); if (c instanceof Node) cell.append(c); else cell.textContent = c ?? "-"; }
+/* ---------- theme ---------- */
+const root = document.documentElement;
+const THEMES = ["light", "dark", "system"];
+const THEME_NAME = { light: "Light", dark: "Dark", system: "System" };
+const THEME_ICON = { light: "#i-sun", dark: "#i-moon", system: "#i-monitor" };
+const sysDark = matchMedia("(prefers-color-scheme: dark)");
+let themePref = "system";
+function applyTheme() {
+  const effective = themePref === "system" ? (sysDark.matches ? "dark" : "light") : themePref;
+  root.dataset.theme = effective;
+  $$("#theme-seg button").forEach((b) => {
+    const isOn = b.dataset.theme === themePref;
+    b.setAttribute("aria-checked", isOn);
+    b.tabIndex = isOn ? 0 : -1;
+  });
+  $("#tp-note").textContent = themePref === "system" ? `Following the system · ${effective}` : "";
+  const c = $("#theme-cycle");
+  $("use", c).setAttribute("href", THEME_ICON[themePref]);
+  c.dataset.tip = `Theme: ${THEME_NAME[themePref]}${themePref === "system" ? " (" + effective + ")" : ""} · click to change`;
+}
+function setTheme(pref) {
+  themePref = THEMES.includes(pref) ? pref : "system";
+  store("theme", themePref);
+  applyTheme();
+}
+$$("#theme-seg button").forEach((b) => b.onclick = () => setTheme(b.dataset.theme));
+$("#theme-seg").onkeydown = (e) => {
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+  if (!step) return;
+  e.preventDefault();
+  setTheme(THEMES[(THEMES.indexOf(themePref) + step + 3) % 3]);
+  $(`#theme-seg button[data-theme="${themePref}"]`).focus();
+};
+$("#theme-cycle").onclick = (e) => {
+  setTheme(THEMES[(THEMES.indexOf(themePref) + 1) % 3]);
+  const t = document.querySelector(".tip");
+  if (t && t.classList.contains("show")) t.textContent = e.currentTarget.dataset.tip;
+};
+sysDark.addEventListener("change", () => { if (themePref === "system") applyTheme(); });
+setTheme(load("theme") || "system");
+
+/* ---------- help popovers (.help > .help-btn + .help-pop) ---------- */
+$$(".help").forEach((wrap) => {
+  const btn = $(".help-btn", wrap), pop = $(".help-pop", wrap);
+  const open = (v) => { pop.hidden = !v; btn.setAttribute("aria-expanded", v); };
+  btn.onclick = () => open(pop.hidden);
+  wrap.addEventListener("keydown", (e) => { if (e.key === "Escape" && !pop.hidden) { open(false); btn.focus(); } });
+  document.addEventListener("mousedown", (e) => { if (!pop.hidden && !wrap.contains(e.target)) open(false); });
+});
+
+/* ---------- status words ---------- */
+const GOOD = new Set(["use", "followed", "injected", "output", "wrapped", "notes", "applied", "ok"]);
+const BAD = new Set(["failed", "error", "ignored?"]);
+const kind = (v) => !v ? "" : BAD.has(v) || /^(fail|error)/.test(v) ? "bad" : GOOD.has(v) ? "ok" : "warn";
+
+/* ---------- navigation ---------- */
+const PAGES = ["home", "logs", "skills", "backup", "health"];
+let skillsLoaded = false, logsTimer = null;
+function go(name) {
+  if (!PAGES.includes(name)) name = "home";
+  for (const p of PAGES) $("#p-" + p).hidden = p !== name;
+  $$(".nav").forEach((b) => b.dataset.page === name ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
+  store("page", name);
+  scrollTo({ top: 0 });
+  if (name === "skills" && !skillsLoaded) loadSkills().catch((e) => showOut("#sk-out", unreachable));
+  if (name === "logs") refreshLogs();
+  if (name === "health" && !checksDone) runChecks();
+}
+$$(".nav").forEach((b) => b.onclick = () => go(b.dataset.page));
+$$("[data-go]").forEach((b) => b.onclick = () => go(b.dataset.go));
+function showOut(sel, text) { const o = $(sel); o.hidden = false; o.textContent = text; }
+
+/* ---------- overview: stats and hook cards ---------- */
+async function loadOverview() {
+  let s;
+  try { s = await getJson("/api/stats?days=1"); } catch (e) { $("#stats").innerHTML = `<div class="muted">${unreachable}</div>`; return; }
+  const t = s.totals, f = s.follow;
+  const delta = t.prev_runs ? Math.round((t.runs - t.prev_runs) / t.prev_runs * 100) : null;
+  const rate = f.total ? Math.round(100 * f.followed / f.total) : null;
+  $("#stats").innerHTML = `
+    <div class="card stat"><div class="k">${ico("zap")}Hook runs · 24h</div><div class="v">${t.runs.toLocaleString()}</div><div class="d ${delta > 0 ? "up" : ""}">${delta === null ? "no runs the day before" : (delta > 0 ? "+" : "") + delta + "% vs. previous day"}</div></div>
+    <div class="card stat"><div class="k">${ico("route")}Skill suggestions followed</div><div class="v">${rate === null ? "-" : rate + "%"}</div><div class="d">${f.followed} of ${f.total} <code>use</code> decisions</div></div>
+    <div class="card stat"><div class="k">${ico("pulse")}Median hook time</div><div class="v">${t.median_ms} ms</div><div class="d">${t.slowest ? `p95 ${t.slowest.p95_ms} ms (${esc(t.slowest.name)})` : "no timings yet"}</div></div>
+    <div class="card stat"><div class="k">${ico("alert")}Failures · 24h</div><div class="v">${t.failed}</div><div class="d">${t.failed ? "see Logs, filter Failed" : "none"}</div></div>`;
+  $("#hooks-n").textContent = s.hooks.length + " with run logs";
+  $("#hooks").innerHTML = s.hooks.map((h) => {
+    const n = h.ok + h.warn + h.bad || 1, w = (x) => (100 * x / n).toFixed(1);
+    const pill = h.enabled === true ? '<span class="pill ok">on</span>' : h.enabled === false ? '<span class="pill off">off</span>' : "";
+    return `<div class="hook">
+      <div class="hook-top"><b>${esc(h.name)}</b><div class="spacer"></div>${pill}</div>
+      <div class="muted" style="font-size:12px;margin-top:-6px">${esc(h.event) || "&nbsp;"}</div>
+      <div class="bar" title="ok ${h.ok} · skipped ${h.warn} · failed ${h.bad}"><i class="g" style="width:${w(h.ok)}%"></i><i class="y" style="width:${w(h.warn)}%"></i><i class="r" style="width:${w(h.bad)}%"></i></div>
+      <div class="hook-meta"><span><b>${h.runs.toLocaleString()}</b> runs</span><span>median <b>${h.median_ms} ms</b></span></div></div>`;
+  }).join("") || '<div class="muted">No run logs yet.</div>';
+}
+
+/* ---------- command console ---------- */
+const ICONS = { skill_router: "route", skill_pick: "zap", te_patch: "layers", source_of_truth: "file", report: "chart", doctor: "stetho", calibrate: "sliders", export: "download", settings: "gear" };
+const NOTES = {
+  skill_router: "On, each prompt except short, long and private ones is sent to the classifier. Prompts that mention secrets are skipped.",
+  settings: "Changes Claude's settings.json or Codex's hooks.json. Hooks that are not ours are never touched.",
+  te_patch: "update and rebuild reinstall the plugin and re-apply our patch.",
+};
+const titleOf = (n) => { const s = n.replace(/_/g, " "); return s[0].toUpperCase() + s.slice(1); };
+let CMDS = [], sel = null;
+function renderCmdList() {
+  const q = $("#cmd-filter").value.toLowerCase();
+  $("#cmd-items").innerHTML = CMDS.filter((c) => !q || (c.name + c.purpose).toLowerCase().includes(q)).map((c) => `
+    <button class="cmd-item" role="option" aria-selected="${c === sel}" data-n="${esc(c.name)}">
+      <span class="ci-ic">${ico(ICONS[c.name] || "gear")}</span>
+      <span><div class="ci-t">${esc(titleOf(c.name))}<code>${esc(c.name)}</code></div><div class="ci-d">${esc(c.purpose)}</div></span>
+    </button>`).join("") || '<div class="muted" style="padding:16px">No command matches.</div>';
+  $$(".cmd-item").forEach((b) => b.onclick = () => { sel = CMDS.find((c) => c.name === b.dataset.n); renderCmdList(); renderDetail(); });
+}
+function renderDetail() {
+  const c = sel;
+  if (!c) { $("#cmd-detail").innerHTML = '<div class="muted">No commands.</div>'; return; }
+  const first = c.usage.split(" ")[0];
+  const choices = /^[a-z|]+$/.test(first) && first.includes("|") ? first.split("|") : null;
+  const rest = choices ? c.usage.slice(first.length).trim() : c.usage;
+  $("#cmd-detail").innerHTML = `
+    <div class="cd-head"><span class="ci-ic" style="width:40px;height:40px">${ico(ICONS[c.name] || "gear")}</span>
+      <div style="flex:1;min-width:0"><h3>${esc(titleOf(c.name))}</h3><p>${esc(c.purpose)}</p></div><span class="tag">${esc(c.name)}</span></div>
+    ${choices ? `<div><span class="label">Action</span><div class="seg" id="act">${choices.map((x, i) => `<button aria-pressed="${i === 0}" data-a="${esc(x)}">${esc(x)}</button>`).join("")}</div></div>` : ""}
+    <div><span class="label">Arguments ${rest ? `<span class="muted mono" style="font-weight:400">${esc(rest)}</span>` : '<span class="muted" style="font-weight:400">none</span>'}</span>
+      <div class="runline"><div class="prompt"><span>›</span><code>${esc(c.name)}</code><input id="args" aria-label="Arguments" placeholder="${esc(rest)}" autocomplete="off"></div>
+      <button class="btn primary" id="run">${ico("play")}Run</button></div></div>
+    ${NOTES[c.name] ? `<div class="callout"><svg class="i"><use href="#i-shield"/></svg><span>${esc(NOTES[c.name])}</span></div>` : ""}
+    <div><div class="out-head"><b>Output</b><div class="spacer"></div><span id="out-meta">not run yet</span></div><pre class="out" id="out"><span class="d">Press Run to run it.</span></pre></div>`;
+  let action = choices ? choices[0] : "";
+  seg($("#act") || document.createElement("div"), (b) => { action = b.dataset.a; });
+  const run = async () => {
+    const btn = $("#run"); btn.disabled = true;
+    const args = [action, $("#args").value.trim()].filter(Boolean).join(" ");
+    const line = [c.name, args].filter(Boolean).join(" ");
+    $("#out").innerHTML = `<span class="p">$ ${esc(line)}</span>\n<span class="d">running…</span>`;
+    const t0 = performance.now();
+    try {
+      const j = await post("/api/run", { name: c.name, args });
+      $("#out").innerHTML = `<span class="p">$ ${esc(line)}</span>\n${esc(j.error ? j.error : (j.output || "").trim() || "(no output)")}`;
+      $("#out-meta").textContent = `exit ${j.code ?? 1} · ${Math.round(performance.now() - t0)} ms`;
+    } catch (e) { $("#out").innerHTML = `<span class="p">$ ${esc(line)}</span>\n${unreachable}`; }
+    btn.disabled = false;
+    if (c.name === "skill_router") loadOverview();
+  };
+  $("#run").onclick = run;
+  $("#args").onkeydown = (e) => { if (e.key === "Enter") run(); };
+}
+$("#cmd-filter").oninput = renderCmdList;
+addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); go("home"); $("#cmd-filter").focus(); } });
+async function loadCommands() {
+  try { CMDS = await getJson("/api/commands"); } catch (e) { $("#cmd-detail").innerHTML = `<div class="muted">${unreachable}</div>`; return; }
+  sel = CMDS[0] || null;
+  renderCmdList(); renderDetail();
+}
+
+/* ---------- logs ---------- */
+let FILES = [], logFile = null, outcomeF = "", rows = [], records = 0, selTs = null;
+const STATUS_COLS = ["outcome", "decision", "status"];
+const fileAge = (x) => Date.now() / 1000 - x.modified;
+const isStale = (x) => fileAge(x) > 3 * 86400 && x.f.endsWith("runs.jsonl");
+async function loadFiles() {
+  const list = await getJson("/api/logs");
+  FILES = list.map((l) => ({ f: l.file, modified: l.modified }));
+  const n = $("#n-logs"); n.hidden = !FILES.length; n.textContent = FILES.length;
+  $("#lf-btn").closest(".logpick").dataset.n = FILES.length;
+  if (!FILES.some((x) => x.f === logFile)) {
+    const saved = load("log");
+    logFile = FILES.some((x) => x.f === saved) ? saved : (FILES[0] || {}).f || null;
   }
-  if (!rows.length) { const c = table.insertRow().insertCell(); c.colSpan = head.length; c.textContent = "none"; }
+  renderFiles();
 }
-async function reveal(path) {
-  const out = $("sk-out"); out.hidden = false;
-  try { await skillsCall({ action: "reveal", path }); out.textContent = "opened in the file manager"; }
-  catch (e) { out.textContent = String(e.message || e); }
+function renderFiles() {
+  const x = FILES.find((y) => y.f === logFile);
+  $("#lf-btn").innerHTML = x
+    ? `${ico("file")}<span><b>${esc(x.f)}</b><small class="${isStale(x) ? "stale" : ""}">${isStale(x) ? "no writes for " + ago(fileAge(x)).replace(" ago", "") : "updated " + ago(fileAge(x))}</small></span>${ico("chev").replace('class="i"', 'class="i chev"')}`
+    : `${ico("file")}<span><b>No log files yet</b></span>${ico("chev").replace('class="i"', 'class="i chev"')}`;
 }
-const statusCell = (s) => { const e = mk("span", s); e.className = s === "ok" ? "ok" : (s === "conflict" || s === "broken link") ? "bad" : "warn"; return e; };
+let comboItems = [], comboIdx = 0;
+function hl(s, q) {
+  const i = q ? s.toLowerCase().indexOf(q) : -1;
+  return i < 0 ? esc(s) : esc(s.slice(0, i)) + "<mark>" + esc(s.slice(i, i + q.length)) + "</mark>" + esc(s.slice(i + q.length));
+}
+function renderCombo() {
+  const q = $("#lf-q").value.trim().toLowerCase();
+  comboItems = FILES.filter((x) => !q || x.f.toLowerCase().includes(q));
+  comboIdx = Math.max(0, Math.min(comboIdx, comboItems.length - 1));
+  let html = "", group = null;
+  comboItems.forEach((x, i) => {
+    const [g, n] = x.f.split("/");
+    if (g !== group) { group = g; html += `<li class="combo-group" role="presentation">${hl(g, q)}</li>`; }
+    const age = isStale(x) ? "stale · " + ago(fileAge(x)).replace(" ago", "") : ago(fileAge(x));
+    html += `<li class="combo-opt${i === comboIdx ? " active" : ""}" role="option" id="lf-o${i}" data-i="${i}" aria-selected="${x.f === logFile}">
+      <svg class="i ck-mark"><use href="#i-check"/></svg><span class="name">${hl(n, q)}</span><span class="age${isStale(x) ? " stale" : ""}">${age}</span></li>`;
+  });
+  $("#lf-list").innerHTML = html || `<li class="combo-empty">No log file matches “${esc(q)}”</li>`;
+  $("#lf-count").textContent = `${comboItems.length} of ${FILES.length} files`;
+  $("#lf-q").setAttribute("aria-activedescendant", comboItems.length ? "lf-o" + comboIdx : "");
+  const a = $("#lf-o" + comboIdx); if (a) a.scrollIntoView({ block: "nearest" });
+}
+function openCombo(open) {
+  $("#lf-pop").hidden = !open;
+  $("#lf-btn").setAttribute("aria-expanded", open);
+  if (open) { $("#lf-q").value = ""; comboIdx = Math.max(0, FILES.findIndex((x) => x.f === logFile)); renderCombo(); $("#lf-q").focus(); }
+}
+function pickFile(f) {
+  logFile = f; selTs = null; store("log", f);
+  renderFiles(); openCombo(false); $("#lf-btn").focus(); refreshLogs();
+}
+$("#lf-btn").onclick = () => openCombo($("#lf-pop").hidden);
+$("#lf-btn").onkeydown = (e) => { if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") { e.preventDefault(); openCombo(true); } };
+$("#lf-q").oninput = () => { comboIdx = 0; renderCombo(); };
+$("#lf-q").onkeydown = (e) => {
+  if (e.key === "ArrowDown") { e.preventDefault(); comboIdx = Math.min(comboIdx + 1, comboItems.length - 1); renderCombo(); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); comboIdx = Math.max(comboIdx - 1, 0); renderCombo(); }
+  else if (e.key === "Enter") { e.preventDefault(); if (comboItems[comboIdx]) pickFile(comboItems[comboIdx].f); }
+  else if (e.key === "Escape") { openCombo(false); $("#lf-btn").focus(); }
+};
+$("#lf-list").onclick = (e) => { const li = e.target.closest(".combo-opt"); if (li) pickFile(comboItems[+li.dataset.i].f); };
+$("#lf-list").onmousemove = (e) => {
+  const li = e.target.closest(".combo-opt");
+  if (!li || +li.dataset.i === comboIdx) return;
+  comboIdx = +li.dataset.i;
+  $$(".combo-opt", $("#lf-list")).forEach((o) => o.classList.toggle("active", o === li));
+  $("#lf-q").setAttribute("aria-activedescendant", li.id);
+};
+document.addEventListener("mousedown", (e) => { if (!$("#lf-pop").hidden && !$("#lf-combo").contains(e.target)) openCombo(false); });
+
+async function refreshLogs() {
+  if ($("#p-logs").hidden) return;
+  try {
+    await loadFiles();
+    if (!logFile) { rows = []; records = 0; renderLogs(); return; }
+    const recs = await getJson(`/api/tail?file=${encodeURIComponent(logFile)}&rows=200&prompts=${on($("#sw-prompts")) ? 1 : 0}`);
+    records = recs.length;
+    rows = recs.reverse();
+    renderLogs(); renderDrawer();
+  } catch (e) { $("#log-info").textContent = unreachable; }
+}
+function renderLogs() {
+  const q = $("#log-filter").value.toLowerCase();
+  const keys = [];
+  for (const r of rows) for (const k of Object.keys(r)) if (k !== "timestamp" && k !== "session_id" && !keys.includes(k)) keys.push(k);
+  const cols = ["time", ...keys];
+  const vis = rows.filter((r) => (!q || JSON.stringify(r).toLowerCase().includes(q)) &&
+    (!outcomeF || STATUS_COLS.some((c) => kind(r[c]) === outcomeF)));
+  const numeric = (c) => c === "duration_ms" || c === "elapsed_ms" || c === "confidence" || /^bytes_/.test(c);
+  $("#log-head").innerHTML = "<tr>" + cols.map((c) => `<th class="${numeric(c) ? "right" : ""}">${esc(c)}</th>`).join("") + "</tr>";
+  $("#log-body").innerHTML = vis.map((r) => `<tr data-ts="${r.timestamp}" class="${r.timestamp === selTs ? "sel" : ""}" style="cursor:pointer">` + cols.map((c) => {
+    if (c === "time") return `<td class="time">${new Date(r.timestamp * 1000).toLocaleTimeString()}</td>`;
+    const v = r[c];
+    if (v === undefined || v === null) return "<td></td>";
+    if (STATUS_COLS.includes(c) && v) return `<td><span class="pill ${kind(v)}">${esc(v)}</span></td>`;
+    if (c === "confidence") return `<td class="num right">${esc(v)}%</td>`;
+    if (c === "duration_ms" || c === "elapsed_ms") return `<td class="num right">${esc(v)} ms</td>`;
+    if (typeof v === "number") return `<td class="num right">${esc(v)}</td>`;
+    const text = typeof v === "object" ? JSON.stringify(v) : v;
+    return `<td title="${esc(text)}" class="${c === "cwd" ? "muted" : ""}">${esc(text)}</td>`;
+  }).join("") + "</tr>").join("") || `<tr><td colspan="${cols.length}" class="muted" style="text-align:center;padding:32px">No rows match.</td></tr>`;
+  $("#log-info").textContent = `${vis.length} of ${records} rows`;
+  $$("#log-body tr[data-ts]").forEach((tr) => tr.onclick = () => { selTs = +tr.dataset.ts; renderLogs(); renderDrawer(); });
+}
+function renderDrawer() {
+  const r = rows.find((x) => x.timestamp === selTs);
+  $("#log-split").classList.toggle("open", !!r);
+  if (!r) return;
+  $("#drawer").innerHTML = `<div style="display:flex;align-items:center;gap:8px"><b>Row detail</b><div class="spacer"></div><button class="icon-btn" id="dclose" aria-label="Close">${ico("x")}</button></div>
+    <div class="muted" style="font-size:12px">${new Date(r.timestamp * 1000).toLocaleString()}</div>
+    <dl class="kv">${Object.entries(r).filter(([k]) => k !== "timestamp").map(([k, v]) =>
+      `<dt>${esc(k)}</dt><dd>${v === "(hidden)" ? '<span class="muted">hidden · turn on Show prompts</span>' : esc(typeof v === "object" ? JSON.stringify(v) : v)}</dd>`).join("")}</dl>
+    <div style="margin-top:14px;display:flex;gap:6px"><button class="btn sm" id="dcopy">Copy JSON</button></div>`;
+  $("#dclose").onclick = () => { selTs = null; renderLogs(); renderDrawer(); };
+  $("#dcopy").onclick = async () => {
+    try { await navigator.clipboard.writeText(JSON.stringify(r, null, 2)); toast("Copied row as JSON"); }
+    catch (e) { toast("Could not copy: the browser blocked it"); }
+  };
+}
+sw($("#sw-prompts"), refreshLogs);
+sw($("#sw-live"), scheduleLogs);
+$("#log-filter").oninput = renderLogs;
+seg($("#outcome-seg"), (b) => { outcomeF = b.dataset.o; renderLogs(); });
+function scheduleLogs() { clearInterval(logsTimer); if (on($("#sw-live"))) logsTimer = setInterval(refreshLogs, 2000); }
+
+/* ---------- skills & plugins ---------- */
+let SK = null, skTab = "global", skFilter = "";
+const skillsCall = async (body) => { const j = await post("/api/skills", body); if (j.error) throw new Error(j.error); return j; };
+const mark = (v) => v ? `<span class="check">${ico("check")}</span>` : `<span class="cross">–</span>`;
+const stPill = (s) => `<span class="pill ${s === "ok" ? "ok" : /conflict|broken/.test(s) ? "bad" : "warn"}">${esc(s)}</span>`;
 const planLines = (plan) => plan.map((p) => typeof p === "string" ? p : `${p.name}: ${p.action}${p.note ? " (" + p.note + ")" : ""}`);
 // Every change shows its plan first, then runs only after the user confirms.
 async function change(body, title) {
-  const out = $("sk-out");
-  out.hidden = false;
   try {
-    let b = { ...body };
-    let dry;
+    let b = { ...body }, dry;
     try { dry = await skillsCall({ ...b, dry_run: true }); }
     catch (e) {
       if (b.action === "promote_skill" && /already exists/.test(e.message) && confirm(e.message.split(";")[0] + ". Replace it? (the old one goes to Trash)")) {
@@ -315,124 +866,260 @@ async function change(body, title) {
       } else throw e;
     }
     const lines = planLines(dry.plan || []);
-    if (!lines.length) { out.textContent = "nothing to do"; return; }
-    if (!confirm(`${title}\n\n${lines.join("\n")}\n\nContinue? Removed things go to Trash and can be restored.`)) { out.textContent = "cancelled"; return; }
+    if (!lines.length) { showOut("#sk-out", "nothing to do"); return; }
+    if (!confirm(`${title}\n\n${lines.join("\n")}\n\nContinue? Removed things go to Trash and can be restored.`)) { showOut("#sk-out", "cancelled"); return; }
     const done = await skillsCall({ ...b, dry_run: false });
-    out.textContent = ["done", done.trash && `undo from Trash: ${done.trash}`, ...(done.notes || [])].filter(Boolean).join("\n");
-  } catch (e) { out.textContent = String(e.message || e); }
+    showOut("#sk-out", ["done", done.trash && `undo from Trash: ${done.trash}`, ...(done.notes || [])].filter(Boolean).join("\n"));
+  } catch (e) { showOut("#sk-out", String(e.message || e)); }
   await loadSkills();
 }
-let roots = [];
+async function reveal(path) {
+  try { await skillsCall({ action: "reveal", path }); toast("Opened in the file manager"); }
+  catch (e) { showOut("#sk-out", String(e.message || e)); }
+}
 async function saveRoots(list) {
-  const out = $("sk-out"); out.hidden = false;
-  try { await skillsCall({ action: "set_roots", roots: list }); out.textContent = "folders saved"; $("sk-root-new").value = ""; }
-  catch (e) { out.textContent = String(e.message || e); return; }
+  try { await skillsCall({ action: "set_roots", roots: list }); toast("Folders saved"); }
+  catch (e) { showOut("#sk-out", String(e.message || e)); return; }
   await loadSkills();
 }
-$("sk-root-add").onclick = () => { const v = $("sk-root-new").value.trim(); if (v) saveRoots([...roots, v]); };
-$("sk-root-reset").onclick = () => saveRoots([]);
-$("sk-root-pick").onclick = async () => { const j = await post("/api/pick-folder", {}); if (j.folder) $("sk-root-new").value = j.folder; };
 async function loadSkills() {
-  const j = await skillsCall({ action: "scan" });
-  fill($("sk-global"), ["Skill", "Claude", "Codex", "Status", "Source", ""], j.skills.map((s) =>
-    [s.name, s.claude, s.codex, statusCell(s.status),
-     s.in_store ? "global store" : "project: " + (s.source || "").split(/[\\/]\.agents[\\/]/)[0].split(/[\\/]/).pop(),
-     mk("button", "Delete", () => change({ action: "delete_skill", name: s.name }, `Delete skill ${s.name} from Claude and Codex`))]));
-  const only = j.project.skills.filter((s) => !s.global);
-  fill($("sk-proj"), ["Export", "Project", "Skill", ""], only.map((s) => {
-    const tick = mk("input"); tick.type = "checkbox"; tick.dataset.path = s.path;
-    const mode = mk("select"); for (const m of ["link", "keep", "remove"]) mode.append(new Option(m, m));
-    mode.title = "what happens to the project copy: link = replace it with a link to the global one, keep, remove (to Trash)";
-    const box = mk("span"); box.append(mk("button", "Open folder", () => reveal(s.path)), mode, mk("button", "Make global", () =>
-      change({ action: "promote_skill", path: s.path, mode: mode.value }, `Make ${s.name} global`)));
-    return [tick, s.project, s.name + (s.codex_linked ? " (linked in Codex)" : ""), box];
-  }));
-  roots = j.roots;
-  fill($("sk-roots"), ["Folder", ""], roots.map((r) =>
-    [r, mk("button", "Remove", () => saveRoots(roots.filter((x) => x !== r)))]));
-  fill($("sk-plug"), ["Plugin", "Claude", "Codex", ""], j.plugins.map((p) => {
-    const box = mk("span");
-    if (!p.claude) box.append(mk("button", "Add to Claude", () => change({ action: "add_plugin", id: p.id, to: "claude" }, `Add ${p.id} to Claude`)));
-    if (!p.codex) box.append(mk("button", "Add to Codex", () => change({ action: "add_plugin", id: p.id, to: "codex" }, `Add ${p.id} to Codex`)));
-    box.append(mk("button", "Delete", () => change({ action: "delete_plugin", id: p.id, purge_cache: $("sk-purge").checked }, `Delete plugin ${p.id} from Claude and Codex`)));
-    return [p.id, p.claude, p.codex, box];
-  }));
-  $("sk-pp-card").hidden = !j.project.plugins.length;
-  fill($("sk-pp"), ["Project", "Plugin", "Enabled", ""], j.project.plugins.map((p) =>
-    [p.project, p.id, p.enabled ? "on" : "off", (() => { const box = mk("span");
-      box.append(mk("button", "Open folder", () => reveal(p.path)), mk("button", "Make global", () => change({ action: "promote_plugin", project: p.path, id: p.id }, `Make ${p.id} global`)));
-      return box; })()]));
-  fill($("sk-trash"), ["When", "Items", ""], j.trash.map((t) =>
-    [t.id, t.items.join(", "), mk("button", "Restore", async () => {
-      if (!confirm("Put these back?\n" + t.items.join("\n"))) return;
-      try { await skillsCall({ action: "restore", bucket: t.id }); $("sk-out").textContent = "restored"; } catch (e) { $("sk-out").textContent = e.message; }
-      $("sk-out").hidden = false;
-      await loadSkills();
-    })]));
+  SK = await skillsCall({ action: "scan" });
+  skillsLoaded = true;
+  const only = SK.project.skills.filter((s) => !s.global);
+  $("#c-global").textContent = SK.skills.length; $("#c-project").textContent = only.length;
+  $("#c-plugins").textContent = SK.plugins.length; $("#c-trash").textContent = SK.trash.length;
+  const n = $("#n-skills"); n.hidden = false; n.textContent = SK.skills.length;
+  renderSkills();
 }
-$("sk-refresh").onclick = async () => {
-  const b = $("sk-refresh"); b.disabled = true; b.textContent = "Refreshing...";
-  try { await loadSkills(); $("sk-out").hidden = true; }
-  catch (e) { $("sk-out").hidden = false; $("sk-out").textContent = String(e.message || e); }
-  b.disabled = false; b.textContent = "Refresh";
+const trashDate = (id) => id.replace(/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/, "$1-$2-$3 $4:$5:$6");
+const PANELS = {
+  global: () => {
+    const q = skFilter.toLowerCase(), bad = SK.skills.filter((s) => s.status !== "ok").length;
+    const list = SK.skills.filter((s) => !q || s.name.toLowerCase().includes(q));
+    return `<div class="card" style="overflow:hidden"><div class="toolbar"><label class="search"><svg class="i"><use href="#i-search"/></svg><input id="sk-filter" placeholder="Filter skills" aria-label="Filter skills" value="${esc(skFilter)}"></label><span class="muted">${bad ? bad + " need attention" : "all in step"}</span></div>
+    <div class="tablewrap"><table class="t"><thead><tr><th>Skill</th><th>Claude</th><th>Codex</th><th>Status</th><th>Source</th><th></th></tr></thead><tbody>
+    ${list.map((s) => `<tr><td class="mono">${esc(s.name)}</td><td>${mark(s.claude)}</td><td>${mark(s.codex)}</td><td>${stPill(s.status)}</td>
+      <td class="muted">${s.in_store ? "global store" : "project: " + esc((s.source || "").split(/[\\/]\.agents[\\/]/)[0].split(/[\\/]/).pop())}</td>
+      <td><div class="row-actions"><button class="btn sm ghost danger" data-act="del-skill" data-name="${esc(s.name)}">Delete</button></div></td></tr>`).join("") || '<tr><td colspan="6" class="muted" style="text-align:center;padding:32px">No skills match.</td></tr>'}
+    </tbody></table></div></div>`;
+  },
+  project: () => {
+    const only = SK.project.skills.filter((s) => !s.global);
+    return `<div class="card" style="overflow:hidden"><div class="toolbar"><span class="ink2">Found in project folders and not global. Tick one to include it in the export; Make global copies it to the global store and links both tools.</span></div>
+    <table class="t"><thead><tr><th style="width:40px"></th><th>Project</th><th>Skill</th><th>Project copy after promoting</th><th></th></tr></thead><tbody>
+    ${only.map((s, i) => `<tr data-i="${i}"><td><input type="checkbox" class="sk-tick" data-path="${esc(s.path)}" aria-label="Include ${esc(s.name)} in the export"></td><td>${esc(s.project)}</td>
+      <td class="mono">${esc(s.name)}${s.codex_linked ? ' <span class="tag">linked in Codex</span>' : ""}</td>
+      <td><div class="seg" title="What happens to the project copy: link replaces it with a link to the global one, keep leaves it, remove sends it to Trash"><button aria-pressed="true" data-m="link">link</button><button aria-pressed="false" data-m="keep">keep</button><button aria-pressed="false" data-m="remove">remove</button></div></td>
+      <td><div class="row-actions"><button class="btn sm ghost" data-act="reveal" data-path="${esc(s.path)}">Open folder</button><button class="btn sm" data-act="promote" data-i="${i}">Make global</button></div></td></tr>`).join("") || '<tr><td colspan="5" class="muted" style="text-align:center;padding:32px">No project-only skills found.</td></tr>'}
+    </tbody></table></div>`;
+  },
+  plugins: () => `<div class="card" style="overflow:hidden"><div class="toolbar"><span class="ink2">Claude Code and Codex keep separate plugin lists. Add copies a plugin to the other tool; Delete removes it from both.</span><div class="spacer"></div><span class="toggle"><button class="switch" id="sk-purge" role="switch" aria-checked="false" aria-label="Also delete the downloaded plugin files"></button>Also delete downloaded files</span></div>
+    <table class="t"><thead><tr><th>Plugin</th><th>Claude</th><th>Codex</th><th></th></tr></thead><tbody>
+    ${SK.plugins.map((p) => `<tr><td class="mono">${esc(p.id)}</td><td>${mark(p.claude)}</td><td>${mark(p.codex)}</td><td><div class="row-actions">
+      ${!p.claude ? `<button class="btn sm" data-act="add-plugin" data-id="${esc(p.id)}" data-to="claude">Add to Claude</button>` : ""}${!p.codex ? `<button class="btn sm" data-act="add-plugin" data-id="${esc(p.id)}" data-to="codex">Add to Codex</button>` : ""}
+      <button class="btn sm ghost danger" data-act="del-plugin" data-id="${esc(p.id)}">Delete</button></div></td></tr>`).join("") || '<tr><td colspan="4" class="muted" style="text-align:center;padding:32px">No plugins.</td></tr>'}
+    </tbody></table></div>
+    ${SK.project.plugins.length ? `<div class="card" style="overflow:hidden;margin-top:16px"><div class="card-h"><h2>Plugins switched on in projects</h2></div>
+    <table class="t"><thead><tr><th>Project</th><th>Plugin</th><th>Enabled</th><th></th></tr></thead><tbody>
+    ${SK.project.plugins.map((p, i) => `<tr><td>${esc(p.project)}</td><td class="mono">${esc(p.id)}</td><td><span class="pill ${p.enabled ? "ok" : "off"}">${p.enabled ? "on" : "off"}</span></td>
+      <td><div class="row-actions"><button class="btn sm ghost" data-act="reveal" data-path="${esc(p.path)}">Open folder</button><button class="btn sm" data-act="promote-plugin" data-i="${i}">Make global</button></div></td></tr>`).join("")}
+    </tbody></table></div>` : ""}`,
+  folders: () => `<div class="grid2"><div class="card"><div class="card-h"><h2>Folders to check</h2></div><div class="card-b">
+    <p class="ink2" style="margin-top:0">Project skills and plugins are looked for in these folders and a few levels below.</p>
+    <ul class="roots">${SK.roots.map((r, i) => `<li>${ico("folder")}<span style="overflow:hidden;text-overflow:ellipsis">${esc(r)}</span><button class="btn sm ghost danger" data-act="root-del" data-i="${i}">Remove</button></li>`).join("") || '<li class="muted">No folders.</li>'}</ul>
+    <div class="inline" style="margin-top:12px"><input class="field mono" id="sk-root-new" placeholder="Folder path" aria-label="Folder to add"><button class="btn" data-act="root-pick">Browse</button><button class="btn primary" data-act="root-add">Add</button></div>
+    <div style="margin-top:10px"><button class="btn ghost sm" data-act="root-reset">Use default</button></div></div></div>
+    <div class="card"><div class="card-h"><h2>Export / import</h2></div><div class="card-b stack">
+    <p class="ink2" style="margin:0">One zip with every global skill, the ticked project skills and the plugin list (an encrypted <code>.hbk</code> with a password). Import restores skills (old copies go to Trash) and merges plugins.</p>
+    <div><span class="label">Folder (export) or backup file (import)</span><div class="inline"><input class="field mono" id="sk-folder" value="${esc(load("skills-folder") || "")}" aria-label="Folder or file"><button class="btn" data-act="pick">Browse</button></div></div>
+    <div><span class="label">Password <span class="muted" style="font-weight:400">· optional</span></span><input class="field" type="password" id="sk-password" autocomplete="off"></div>
+    <div class="inline"><button class="btn primary" data-act="export">${ico("download")}Export</button><button class="btn" data-act="import">${ico("upload")}Import</button></div></div></div></div>`,
+  trash: () => `<div class="card" style="overflow:hidden"><table class="t"><thead><tr><th>When</th><th>Items</th><th></th></tr></thead><tbody>
+    ${SK.trash.map((t) => `<tr><td class="time">${esc(trashDate(t.id))}</td><td class="mono" title="${esc(t.items.join(", "))}">${esc(t.items.join(", "))}</td><td><div class="row-actions"><button class="btn sm" data-act="restore" data-id="${esc(t.id)}">Restore</button></div></td></tr>`).join("") || '<tr><td colspan="3" class="muted" style="text-align:center;padding:32px">Trash is empty.</td></tr>'}
+    </tbody></table></div>`,
 };
-$("sk-sync").onclick = () => change({ action: "sync_skills" }, "Sync skills between Claude and Codex");
-$("sk-form").onsubmit = (e) => e.preventDefault();
-$("sk-pw-form").onsubmit = (e) => e.preventDefault();
-$("sk-folder").value = load("skills-folder") || "";
-$("sk-pick").onclick = async () => { const j = await post("/api/pick-folder", {}); if (j.folder) $("sk-folder").value = j.folder; };
-$("sk-export").onclick = async () => {
-  const out = $("sk-out");
-  out.hidden = false; out.textContent = "working...";
-  store("skills-folder", $("sk-folder").value);
-  try {
-    const picked = [...document.querySelectorAll("#sk-proj input[type=checkbox]:checked")].map((c) => c.dataset.path);
-    const j = await skillsCall({ action: "export", folder: $("sk-folder").value, password: $("sk-password").value, project_skills: picked });
-    out.textContent = [`exported ${j.skills} skills, ${j.plugins} plugins`, j.file, ...j.notes].join("\n");
-  } catch (e) { out.textContent = String(e.message || e); }
-};
-$("sk-import").onclick = () => { store("skills-folder", $("sk-folder").value);
-  change({ action: "import", path: $("sk-folder").value, password: $("sk-password").value }, "Import skills and plugins"); };
-
-async function health(name, args, ask) {
-  if (ask && !confirm(ask)) return;
-  const out = $("hl-out");
-  out.hidden = false; out.textContent = "running...";
-  try {
-    const j = await post("/api/run", { name, args });
-    out.textContent = j.error ? j.error : (j.output.trim() || "(no output)") + (j.code ? "\n[exit " + j.code + "]" : "");
-  } catch (e) { out.textContent = "server not reachable"; }
+function renderSkills() {
+  if (!SK) return;
+  $$("#sk-tabs button").forEach((b) => b.setAttribute("aria-selected", b.dataset.t === skTab));
+  const keep = skTab === "project" ? $$("#sk-panel .sk-tick:checked").map((c) => c.dataset.path) : [];
+  $("#sk-panel").innerHTML = PANELS[skTab]();
+  keep.forEach((p) => { const c = $$("#sk-panel .sk-tick").find((x) => x.dataset.path === p); if (c) c.checked = true; });
+  $$("#sk-panel .seg").forEach((s) => seg(s, () => {}));
+  const purge = $("#sk-purge"); if (purge) sw(purge);
+  const f = $("#sk-filter"); if (f) f.oninput = () => { skFilter = f.value; const pos = f.selectionStart; renderSkills(); const n = $("#sk-filter"); n.focus(); n.setSelectionRange(pos, pos); };
 }
-$("hl-check").onclick = () => health("doctor", "");
-$("hl-fix").onclick = () => health("doctor", "--fix --yes", "Install what is missing: the venv, a CLI, TokenEconomizer and the hooks? Other hooks are not touched.");
-$("hl-report").onclick = () => health("report", "--days " + (parseInt($("hl-days").value, 10) || 7) + ($("hl-skills").checked ? " --skills" : ""));
+const onlyProject = () => SK.project.skills.filter((s) => !s.global);
+const ACTS = {
+  "del-skill": (d) => change({ action: "delete_skill", name: d.name }, `Delete skill ${d.name} from Claude and Codex`),
+  reveal: (d) => reveal(d.path),
+  promote: (d, b) => { const s = onlyProject()[+d.i]; const mode = $(".seg [aria-pressed=true]", b.closest("tr")).dataset.m;
+    return change({ action: "promote_skill", path: s.path, mode }, `Make ${s.name} global`); },
+  "add-plugin": (d) => change({ action: "add_plugin", id: d.id, to: d.to }, `Add ${d.id} to ${d.to === "claude" ? "Claude" : "Codex"}`),
+  "del-plugin": (d) => change({ action: "delete_plugin", id: d.id, purge_cache: on($("#sk-purge")) }, `Delete plugin ${d.id} from Claude and Codex`),
+  "promote-plugin": (d) => { const p = SK.project.plugins[+d.i]; return change({ action: "promote_plugin", project: p.path, id: p.id }, `Make ${p.id} global`); },
+  "root-del": (d) => saveRoots(SK.roots.filter((_, i) => i !== +d.i)),
+  "root-add": () => { const v = $("#sk-root-new").value.trim(); if (v) saveRoots([...SK.roots, v]); },
+  "root-reset": () => saveRoots([]),
+  "root-pick": async () => { const j = await post("/api/pick-folder", {}); if (j.folder) $("#sk-root-new").value = j.folder; },
+  pick: async () => { const j = await post("/api/pick-folder", {}); if (j.folder) $("#sk-folder").value = j.folder; },
+  export: async () => {
+    showOut("#sk-out", "working...");
+    store("skills-folder", $("#sk-folder").value);
+    try {
+      const picked = $$("#sk-panel .sk-tick:checked").map((c) => c.dataset.path);
+      const j = await skillsCall({ action: "export", folder: $("#sk-folder").value, password: $("#sk-password").value, project_skills: picked });
+      showOut("#sk-out", [`exported ${j.skills} skills, ${j.plugins} plugins`, j.file, ...j.notes].join("\n"));
+    } catch (e) { showOut("#sk-out", String(e.message || e)); }
+  },
+  import: () => { store("skills-folder", $("#sk-folder").value);
+    return change({ action: "import", path: $("#sk-folder").value, password: $("#sk-password").value }, "Import skills and plugins"); },
+  restore: async (d) => {
+    const t = SK.trash.find((x) => x.id === d.id);
+    if (!t || !confirm("Put these back?\n" + t.items.join("\n"))) return;
+    try { await skillsCall({ action: "restore", bucket: t.id }); showOut("#sk-out", "restored"); } catch (e) { showOut("#sk-out", e.message); }
+    await loadSkills();
+  },
+};
+$("#sk-panel").onclick = (e) => {
+  const b = e.target.closest("[data-act]");
+  if (b && ACTS[b.dataset.act]) ACTS[b.dataset.act](b.dataset, b);
+};
+$$("#sk-tabs button").forEach((b) => b.onclick = () => { skTab = b.dataset.t; renderSkills(); });
+$("#sk-refresh").onclick = async () => {
+  const b = $("#sk-refresh"); b.disabled = true;
+  try { await loadSkills(); $("#sk-out").hidden = true; toast(`Scanned ${SK.skills.length} skills, ${SK.plugins.length} plugins, ${SK.roots.length} folders`); }
+  catch (e) { showOut("#sk-out", String(e.message || e)); }
+  b.disabled = false;
+};
+$("#sk-sync").onclick = () => change({ action: "sync_skills" }, "Sync skills between Claude and Codex");
 
-const PAGES = ["home", "logs", "backup", "skills", "health"];
-function page(name) {
-  for (const p of PAGES) {
-    $(p).hidden = name !== p;
-    $("t-" + p).setAttribute("aria-pressed", name === p);
+/* ---------- backup ---------- */
+$("#bk-folder").value = load("backup-folder") || "";
+$("#bk-source").value = load("backup-source") || "";
+$("#bk-pw").oninput = (e) => { $("#bk-hint").innerHTML = e.target.value ? "Output: <b>.hbk</b> · encrypted" : "Output: <b>.zip</b> (no password)"; };
+$("#bk-pick").onclick = async () => { try { const j = await post("/api/pick-folder", {}); if (j.folder) $("#bk-folder").value = j.folder; } catch (e) { showOut("#bk-out", unreachable); } };
+$("#bk-source-pick").onclick = async () => { try { const j = await post("/api/pick-folder", {}); if (j.folder) $("#bk-source").value = j.folder; } catch (e) { showOut("#bk-out", unreachable); } };
+async function transfer(kind) {
+  const folder = (kind === "export" ? $("#bk-folder") : $("#bk-source")).value;
+  if (kind === "import" && !confirm("Import overwrites same-named files in .data and .memory. Continue?")) { showOut("#bk-out", "cancelled"); return; }
+  showOut("#bk-out", "working...");
+  store(kind === "export" ? "backup-folder" : "backup-source", folder);
+  try {
+    const j = await post("/api/" + kind, { folder, password: (kind === "export" ? $("#bk-pw") : $("#bk-pw2")).value });
+    showOut("#bk-out", j.error ? j.error : `${kind} done: ${j.files.data} data files, ${j.files.memory} memory files\n${j.files.file}`);
+    if (!j.error) toast(kind === "export" ? "Backup written" : "Backup imported");
+  } catch (e) { showOut("#bk-out", unreachable); }
+}
+$("#bk-export").onclick = () => transfer("export");
+$("#bk-import").onclick = () => transfer("import");
+
+/* ---------- health ---------- */
+let checksDone = false, days = 7;
+const LEVEL = { "ok  ": "ok", "warn": "warn", "FAIL": "bad" };
+function parseChecks(text) {
+  return text.split("\n").map((l) => /^\[(ok  |warn|FAIL)\] (.*)$/.exec(l)).filter(Boolean).map((m) => {
+    const i = m[2].indexOf(": "), j = m[2].indexOf(" ");
+    let name = i > 0 ? m[2].slice(0, i) : j > 0 ? m[2].slice(0, j) : m[2];
+    let detail = i > 0 ? m[2].slice(i + 2) : j > 0 ? m[2].slice(j + 1) : "";
+    // two lines per host (hooks, TokenEconomizer) would both read "Claude": name what each one is about
+    if (/^(claude|codex)$/.test(name)) {
+      if (/^TokenEconomizer/.test(detail)) { name = "TokenEconomizer · " + name; detail = detail.replace(/^TokenEconomizer\s*/, "") || "installed"; }
+      else if (/\bhooks?\b/.test(detail)) name += " hooks";
+      else name += " CLI";
+    }
+    return { level: LEVEL[m[1]], name: name[0].toUpperCase() + name.slice(1), detail, raw: m[2] };
+  });
+}
+function showChecks(list) {
+  $("#checks").innerHTML = list.map((c) => `<li><span class="ck ${c.level}">${ico(c.level === "ok" ? "check" : c.level === "bad" ? "x" : "alert")}</span><div class="what"><b>${esc(c.name)}</b><small>${esc(c.detail)}</small></div></li>`).join("")
+    || '<li class="muted">No result. Is the server reachable?</li>';
+  const worst = list.some((c) => c.level === "bad") ? "bad" : list.some((c) => c.level === "warn") ? "warn" : "ok";
+  const dot = $("#n-health"); dot.hidden = worst === "ok";
+  const nav = dot.closest(".nav"); nav.dataset.tip = worst === "ok" ? "Health" : `Health · ${list.filter((c) => c.level !== "ok").length} check(s) need attention`;
+  for (const host of ["claude", "codex"]) {
+    const mine = list.filter((c) => c.raw.toLowerCase().startsWith(host));
+    const el = $("#host-" + host);
+    $(".live-dot", el).className = "live-dot" + (!mine.length ? " idle" : mine.some((c) => c.level !== "ok") ? " warn" : "");
+    el.dataset.tip = (host === "claude" ? "Claude Code" : "Codex") + (!mine.length ? "" : mine.some((c) => c.level !== "ok") ? " · needs attention" : " · ok");
   }
-  store("page", name);
-  if (name === "skills") loadSkills().catch(() => { $("sk-out").hidden = false; $("sk-out").textContent = "server not reachable"; });
+  $("#hl-when").textContent = "checked " + new Date().toLocaleTimeString();
 }
-$("t-home").onclick = () => page("home");
-$("t-logs").onclick = () => page("logs");
-$("t-backup").onclick = () => page("backup");
-$("t-skills").onclick = () => page("skills");
-$("t-health").onclick = () => page("health");
-page(["logs", "backup", "skills", "health"].includes(load("page")) ? load("page") : "home");
-buildHome().catch(() => { $("home").textContent = "server not reachable"; });
-
-(async () => {
+async function runChecks() {
+  $("#hl-when").textContent = "checking…";
   try {
-    await refreshTabs();
-    const saved = load("log");
-    current = logs.some((l) => l.file === saved) ? saved : (logs[0] || {}).file;
-    await refreshTabs();
-    await refreshRows();
-    schedule();
-  } catch (e) { $("info").textContent = "server not reachable"; }
+    const j = await post("/api/run", { name: "doctor", args: "" });
+    showChecks(parseChecks(j.output || ""));
+    checksDone = true;
+  } catch (e) { $("#hl-when").textContent = unreachable; }
+}
+$("#hl-check").onclick = runChecks;
+$("#hl-fix").onclick = async () => {
+  if (!confirm("Install what is missing: the venv, a CLI, TokenEconomizer and the hooks? Other hooks are not touched.")) return;
+  showOut("#hl-out", "working...");
+  try {
+    const j = await post("/api/run", { name: "doctor", args: "--fix --yes" });
+    showOut("#hl-out", j.error ? j.error : (j.output || "").trim() || "(no output)");
+    showChecks(parseChecks(j.output || ""));
+  } catch (e) { showOut("#hl-out", unreachable); }
+};
+async function loadReport() {
+  let s;
+  try { s = await getJson("/api/stats?days=" + days); } catch (e) { $("#ring-text").textContent = unreachable; return; }
+  const f = s.follow, rate = f.total ? Math.round(100 * f.followed / f.total) : null;
+  $("#ring").style.setProperty("--p", (rate || 0) + "%");
+  $("#ring-v").textContent = rate === null ? "-" : rate + "%";
+  $("#ring-text").innerHTML = `Skill router follow rate over <b>${days} ${days === 1 ? "day" : "days"}</b>: ${f.followed} of ${f.total}.` +
+    (f.least ? `<br><span class="muted">Least followed: <code>${esc(f.least.replace(/\s+/g, " "))}</code>. Consider a floor in <code>skill_min_confidence</code>.</span>` : "");
+  const max = Math.max(1, ...s.hooks.map((h) => h.runs));
+  $("#hbars").innerHTML = s.hooks.map((h) => { const n = h.ok + h.warn + h.bad || 1, w = (x) => (h.runs / max * 100 * x / n).toFixed(1);
+    return `<div class="hbar"><code>${esc(h.name)}</code><div class="bar" style="height:8px" title="ok ${h.ok} · skipped ${h.warn} · failed ${h.bad}"><i class="g" style="width:${w(h.ok)}%"></i><i class="y" style="width:${w(h.warn)}%"></i><i class="r" style="width:${w(h.bad)}%"></i></div><span class="num">${h.runs.toLocaleString()}</span></div>`; }).join("")
+    || '<div class="muted">No run logs yet.</div>';
+}
+seg($("#days-seg"), (b) => { days = +b.dataset.d; loadReport(); });
+sw($("#hl-skills"));
+$("#hl-report").onclick = async () => {
+  showOut("#hl-out", "running...");
+  try {
+    const j = await post("/api/run", { name: "report", args: `--days ${days}` + (on($("#hl-skills")) ? " --skills" : "") });
+    showOut("#hl-out", j.error ? j.error : (j.output || "").trim() || "(no output)");
+  } catch (e) { showOut("#hl-out", unreachable); }
+};
+
+/* ---------- collapsible sidebar ---------- */
+const app = $(".app");
+/* tooltip for icon-only items while collapsed (created before first setCollapsed call) */
+const tip = Object.assign(document.createElement("div"), { className: "tip" });
+document.body.append(tip);
+function hideTip() { tip.classList.remove("show"); }
+function setCollapsed(c) {
+  app.classList.toggle("collapsed", c);
+  const t = $("#side-toggle");
+  t.setAttribute("aria-expanded", !c);
+  t.setAttribute("aria-label", c ? "Expand sidebar" : "Collapse sidebar");
+  $(".nl", t).textContent = c ? "Expand" : "Collapse";
+  t.dataset.tip = (c ? "Expand" : "Collapse") + " sidebar · Ctrl+B";
+  store("sidebar-collapsed", c ? "1" : "0");
+  hideTip();
+}
+$("#side-toggle").onclick = () => setCollapsed(!app.classList.contains("collapsed"));
+addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") { e.preventDefault(); setCollapsed(!app.classList.contains("collapsed")); } });
+function showTip(el) {
+  if (!app.classList.contains("collapsed") || innerWidth <= 760) return;
+  const r = el.getBoundingClientRect();
+  tip.textContent = el.dataset.tip;
+  tip.style.left = r.right + 10 + "px";
+  tip.style.top = r.top + r.height / 2 - 13 + "px";
+  tip.classList.add("show");
+}
+$$("aside [data-tip]").forEach((el) => { el.addEventListener("mouseenter", () => showTip(el)); el.addEventListener("mouseleave", hideTip); el.addEventListener("focus", () => showTip(el)); el.addEventListener("blur", hideTip); });
+setCollapsed(load("sidebar-collapsed") === "1");
+
+/* ---------- start ---------- */
+$("#serve-addr").textContent = location.host || "127.0.0.1";
+go(load("page"));
+loadOverview(); loadCommands(); scheduleLogs(); loadReport();
+loadFiles().catch(() => {});
+setTimeout(() => { if (!checksDone) runChecks(); }, 300);
 })();
 </script>
 </body>
