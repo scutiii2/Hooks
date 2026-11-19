@@ -5,6 +5,7 @@ if /i "%~1"=="web" goto webargs
 if /i "%~1"=="patch" goto patch
 if /i "%~1"=="setup" goto setup
 if /i "%~1"=="doctor" goto doctor
+if /i "%~1"=="update" goto update
 
 :menu
 echo.
@@ -14,10 +15,18 @@ echo   1  Web interface ^(opens http://127.0.0.1:8765/ in your browser^)
 echo   2  Token economizer patch ^(Claude or Codex^)
 echo   3  Set up this device ^(create .venv, install the hooks in Claude and Codex^)
 echo   4  Health check ^(is everything in place?^)
+echo   U  Update ^(git pull^)
 echo   Q  Quit
 echo.
-choice /c 1234Q /n /m "What do you want to do? "
-if errorlevel 5 exit /b 0
+choice /c 1234UQ /n /m "What do you want to do? "
+if errorlevel 6 exit /b 0
+rem after a pull this file may have changed: start a fresh copy (the whole block is already read, so this is safe)
+if errorlevel 5 (
+  call "%~f0" update || ( pause & goto menu )
+  pause
+  call "%~f0"
+  exit /b 0
+)
 rem each option runs in its own call, then the menu comes back
 if errorlevel 4 ( call "%~f0" doctor & pause & goto menu )
 if errorlevel 3 ( call "%~f0" setup & pause & goto menu )
@@ -70,6 +79,11 @@ echo.
 :doctor
 call :ensure || exit /b 1
 ".venv\Scripts\python.exe" -m core.py.tools.doctor
+exit /b %errorlevel%
+
+:update
+where git >nul 2>nul || ( echo git not found on PATH. & exit /b 1 )
+git pull --ff-only
 exit /b %errorlevel%
 
 :patch
