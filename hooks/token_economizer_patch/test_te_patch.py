@@ -173,3 +173,13 @@ def test_claude_adds_the_marketplace_the_way_settings_declares_it(tmp_path, monk
     assert host.declared_source() == url
     (tmp_path / "s.json").write_text(json.dumps({"extraKnownMarketplaces": {"tokeneconomizer": {"source": {"source": "github", "repo": "a/b"}}}}))
     assert host.declared_source() == "a/b"
+
+
+def test_codex_adds_the_marketplace_the_way_config_declares_it(tmp_path, monkeypatch):
+    host = te_patch.CodexHost()
+    monkeypatch.setattr(host, "config", tmp_path / "config.toml")
+    assert host.declared_source() == te_patch.SOURCE  # no config: the default
+    url = "https://github.com/microsoft/TokenEconomizer.git"
+    toml = ["[x]", "a = 1", "", "[marketplaces.tokeneconomizer]", 'source_type = "git"', f'source = "{url}"', "", "[y]", 'source = "no"']
+    (tmp_path / "config.toml").write_text(chr(10).join(toml))
+    assert host.declared_source() == url

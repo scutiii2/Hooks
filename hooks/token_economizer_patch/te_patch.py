@@ -234,7 +234,12 @@ class CodexHost(Host):
     def has_marketplace(self):
         return "marketplaces.tokeneconomizer" in self._text() or any(CODEX.glob("**/marketplaces/tokeneconomizer"))
 
-    def add_marketplace(self): return run("codex", "plugin", "marketplace", "add", SOURCE)
+    def declared_source(self) -> str:
+        """The source config.toml declares for this marketplace, so an add matches it (as for Claude)."""
+        m = re.search(r'\[marketplaces\.tokeneconomizer\][^\[]*?^\s*source\s*=\s*"([^"]+)"', self._text(), re.M)
+        return m.group(1) if m else SOURCE
+
+    def add_marketplace(self): return run("codex", "plugin", "marketplace", "add", self.declared_source())
     def refresh_marketplace(self): return run("codex", "plugin", "marketplace", "upgrade", "tokeneconomizer")
     def remove_marketplace(self): return run("codex", "plugin", "marketplace", "remove", "tokeneconomizer")
     def add_plugin(self): return run("codex", "plugin", "add", KEY)
