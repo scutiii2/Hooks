@@ -18,10 +18,12 @@ echo   Q  Quit
 echo.
 choice /c 1234Q /n /m "What do you want to do? "
 if errorlevel 5 exit /b 0
-if errorlevel 4 goto doctor
-if errorlevel 3 goto setup
-if errorlevel 2 goto patch
-goto web
+rem each option runs in its own call, then the menu comes back
+if errorlevel 4 ( call "%~f0" doctor & pause & goto menu )
+if errorlevel 3 ( call "%~f0" setup & pause & goto menu )
+if errorlevel 2 ( call "%~f0" patch & goto menu )
+call "%~f0" web
+goto menu
 
 rem run.bat web [--port N] passes the options on to the web page.
 :webargs
@@ -68,10 +70,7 @@ echo.
 :doctor
 call :ensure || exit /b 1
 ".venv\Scripts\python.exe" -m core.py.tools.doctor
-set "RC=%errorlevel%"
-rem from the menu the window would close before you can read it
-if "%~1"=="" pause
-exit /b %RC%
+exit /b %errorlevel%
 
 :patch
 call :ensure || exit /b 1
