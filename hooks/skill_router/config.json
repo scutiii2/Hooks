@@ -3,6 +3,7 @@
     "jev": 60
   },
   "skill_picker_batch_size": 20,
+  "skip_prompt_chars": 400,
   "skill_min_confidence": {
     "loop": 85,
     "run": 85,

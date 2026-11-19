@@ -249,3 +249,15 @@ def test_roots_are_saved_validated_and_reset(env, tmp_path, monkeypatch):
         s.set_roots([str(tmp_path / "nope")])
     assert s.Env().roots == [other]  # a rejected list changes nothing
     assert s.set_roots([])["default"] is True and s.Env().roots == s.default_roots()
+
+
+def test_import_skips_unchanged_skills_but_still_links_them(env, tmp_path):
+    src = skill(env.store, "same", "v1"); link(env, "claude", src)  # codex link missing on purpose
+    skill(env.store, "other", "o1"); link(env, "claude", env.store / "other"); link(env, "codex", env.store / "other")
+    out = s.export_bundle(env, str(tmp_path / "out"))
+    (env.store / "other" / "SKILL.md").write_text("changed")
+    dry = s.import_bundle(env, out["file"])
+    assert "skill same is unchanged, skipped" in dry["plan"] and "skill other (replaces the current one)" in dry["plan"]
+    done = s.import_bundle(env, out["file"], dry_run=False)
+    assert done["skills"] == 1 and (env.store / "other" / "SKILL.md").read_text() == "o1"
+    assert status(env) == {"same": "ok", "other": "ok"}  # the missing codex link of `same` was added

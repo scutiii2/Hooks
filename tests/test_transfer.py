@@ -111,3 +111,22 @@ def test_endpoint_rejects_foreign_host(roots, tmp_path):
         assert e.value.code == 403
     finally:
         server.shutdown()
+
+
+def test_both_cipher_formats_open_and_gcm_needs_its_package(monkeypatch):
+    data = b"hello " * 100
+    monkeypatch.setattr(transfer, "_gcm", lambda: None)
+    old = transfer.encrypt(data, "pw")
+    assert old.startswith(transfer.MAGIC) and transfer.decrypt(old, "pw") == data
+    monkeypatch.undo()
+    if transfer._gcm() is None:
+        pytest.skip("cryptography not installed")
+    new = transfer.encrypt(data, "pw")
+    assert new.startswith(transfer.MAGIC2) and transfer.decrypt(new, "pw") == data and transfer.decrypt(old, "pw") == data
+    with pytest.raises(ValueError, match="wrong password"):
+        transfer.decrypt(new, "nope")
+    with pytest.raises(ValueError, match="wrong password"):
+        transfer.decrypt(new[:-1] + bytes([new[-1] ^ 1]), "pw")
+    monkeypatch.setattr(transfer, "_gcm", lambda: None)
+    with pytest.raises(ValueError, match="cryptography"):
+        transfer.decrypt(new, "pw")

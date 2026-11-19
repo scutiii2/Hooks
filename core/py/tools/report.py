@@ -4,6 +4,7 @@
     python -m core.py.tools.report --days 30             all time, and the last 30 days
     python -m core.py.tools.report --split 2026-11-03    before / since that date (a change or tuning)
     python -m core.py.tools.report --hook skill_router   one hook
+    python -m core.py.tools.report --skills              which suggested skills get ignored (raise their floors)
 
 Per hook and period: runs, outcomes, average and 95th-percentile duration. skill_router also gets its
 follow rate, and noise_filter the share of output bytes it removed.
@@ -40,17 +41,32 @@ def p95(values: list[float]) -> int:
     return round(ordered[min(len(ordered) - 1, int(len(ordered) * 0.95))]) if ordered else 0
 
 
-def follow_rate(records: list[dict], actions: list[dict]) -> str:
-    """Share of `use` decisions (with a session, not Codex) that a matching tool call followed."""
+def followed_split(records: list[dict], actions: list[dict]) -> tuple[list[dict], list[dict]]:
+    """(followed, ignored) among `use` decisions with a session (Codex has no Skill call to match)."""
     used = [{**d, "router": "SKILL"} for d in records
             if d.get("decision") == "use" and d.get("session_id") and d.get("host") != "codex"]
-    pending, followed = list(used), 0
+    pending, followed = list(used), []
     for action in sorted(actions, key=lambda a: a["timestamp"]):
         match = matching_decision(action, pending)
         if match is not None:
             pending.remove(match)
-            followed += 1
-    return f"followed {followed}/{len(used)} ({100 * followed // len(used)}%)" if used else "followed -"
+            followed.append(match)
+    return followed, pending
+
+
+def follow_rate(records: list[dict], actions: list[dict]) -> str:
+    followed, ignored = followed_split(records, actions)
+    total = len(followed) + len(ignored)
+    return f"followed {len(followed)}/{total} ({100 * len(followed) // total}%)" if total else "followed -"
+
+
+def skill_table(records: list[dict], actions: list[dict], min_uses: int = 5) -> list[str]:
+    """Skills suggested at least `min_uses` times, least followed first."""
+    followed, ignored = followed_split(records, actions)
+    count = Counter(d.get("predicted_skill") for d in followed + ignored)
+    won = Counter(d.get("predicted_skill") for d in followed)
+    rows = sorted(((won[s] / n, s, n) for s, n in count.items() if n >= min_uses), key=lambda r: (r[0], -r[2]))
+    return [f"{s:<46} {won[s]:>3}/{n:<3} {round(100 * rate):>3}%" for rate, s, n in rows] or [f"no skill suggested {min_uses}+ times"]
 
 
 def summarize(hook: str, runs: list[dict], decisions: list[dict], actions: list[dict]) -> list[str]:
@@ -76,6 +92,12 @@ def build(argv: list[str], now: float | None = None) -> list[str]:
     decisions = load(data_path("skill_router", "decisions.jsonl"), "SKILL")
     actions = followed_log.read_all(with_backup=True)
     lines = []
+    if "--skills" in argv:
+        for label, start, end in cols:
+            lines.append(f"skills suggested, {label} (followed/suggested):")
+            lines.extend("  " + x for x in skill_table([r for r in decisions if start <= r.get("timestamp", 0) < end],
+                                                      [r for r in actions if start <= r.get("timestamp", 0) < end]))
+        return lines
     for hook in sorted(os.listdir(DATA)) if os.path.isdir(DATA) else []:
         path = data_path(hook, "runs.jsonl")
         if (only and hook != only) or not os.path.exists(path):

@@ -33,3 +33,10 @@ def test_concurrent_increments_are_not_lost(tmp_path):
     with ThreadPoolExecutor(8) as pool:
         list(pool.map(lambda _: c.increment("n"), range(100)))
     assert c.read()["n"] == 100
+
+
+def test_skip_reason_names_the_cause_and_long_prompts_obey_the_limit():
+    from core.py.hook_io import skip_reason
+    assert skip_reason("") == "empty" and skip_reason("ok do it") == "short reply"
+    long = "please review this " * 30
+    assert skip_reason(long, "", 400) == "long" and skip_reason(long) is None and skip_reason("fix the bug", "", 400) is None

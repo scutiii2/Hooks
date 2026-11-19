@@ -5,9 +5,13 @@ Export writes `hooks-backup-<time>.zip` into a folder, or `.hbk` when a password
 `data/` and `memory/` inside. Import takes that file, or a folder (newest backup file in it, else the
 older plain `data/` + `memory/` copy), overwrites same-named files and keeps the rest.
 
-Encrypted file (.hbk), stdlib only: b"HKBK1" + salt(16) + nonce(16) + ciphertext + tag(32).
-Keys: scrypt(password, salt) -> 64 bytes (cipher key, MAC key). Cipher: HMAC-SHA256 in counter mode as a
-stream cipher. Tag: HMAC-SHA256 over everything before it (encrypt-then-MAC), checked before any decrypt.
+Encrypted file (.hbk), two formats; encrypt picks the first when the `cryptography` package is installed:
+- b"HKBK2" + salt(16) + nonce(12) + AES-256-GCM(ciphertext + tag). Key: scrypt(password, salt); the header is
+  authenticated too. Both devices need `cryptography` (pip install cryptography) to open these.
+- b"HKBK1" (stdlib only) + salt(16) + nonce(16) + ciphertext + tag(32). Keys: scrypt(password, salt) -> 64
+  bytes (cipher key, MAC key). Cipher: HMAC-SHA256 in counter mode as a stream cipher. Tag: HMAC-SHA256 over
+  everything before it (encrypt-then-MAC), checked before any decrypt. Home-built: kept so a device without
+  `cryptography` can still read and write backups. decrypt opens both formats.
 """
 import glob
 import hashlib
@@ -25,6 +29,7 @@ from .. import paths
 
 PARTS = (("data", "DATA"), ("memory", "MEMORY"))  # folder name in the backup, attribute of paths
 MAGIC = b"HKBK1"
+MAGIC2 = b"HKBK2"
 PREFIX = "hooks-backup-"
 
 
@@ -39,7 +44,24 @@ def _xor_stream(key: bytes, nonce: bytes, data: bytes) -> bytes:
     return (int.from_bytes(data, "big") ^ int.from_bytes(stream, "big")).to_bytes(len(data), "big")
 
 
+def _gcm():
+    """AESGCM from the optional `cryptography` package, or None."""
+    try:
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        return AESGCM
+    except ImportError:
+        return None
+
+
+def is_encrypted(blob: bytes) -> bool:
+    return blob.startswith((MAGIC, MAGIC2))
+
+
 def encrypt(data: bytes, password: str) -> bytes:
+    gcm = _gcm()
+    if gcm:
+        salt, nonce = secrets.token_bytes(16), secrets.token_bytes(12)
+        return MAGIC2 + salt + nonce + gcm(_keys(password, salt)[0]).encrypt(nonce, data, MAGIC2 + salt)
     salt, nonce = secrets.token_bytes(16), secrets.token_bytes(16)
     enc_key, mac_key = _keys(password, salt)
     body = MAGIC + salt + nonce + _xor_stream(enc_key, nonce, data)
@@ -47,6 +69,15 @@ def encrypt(data: bytes, password: str) -> bytes:
 
 
 def decrypt(blob: bytes, password: str) -> bytes:
+    if blob.startswith(MAGIC2):
+        gcm = _gcm()
+        if not gcm:
+            raise ValueError("this backup needs the cryptography package: run  pip install cryptography")
+        salt, nonce, body = blob[5:21], blob[21:33], blob[33:]
+        try:
+            return gcm(_keys(password, salt)[0]).decrypt(nonce, body, MAGIC2 + salt)
+        except Exception:  # cryptography.exceptions.InvalidTag
+            raise ValueError("wrong password, or the file is damaged") from None
     head = len(MAGIC) + 32
     if len(blob) < head + 32 or not blob.startswith(MAGIC):
         raise ValueError("not an encrypted hooks backup")
@@ -107,7 +138,7 @@ def _newest_backup(folder: str) -> str | None:
 def _import_zip(path: str, password: str) -> dict:
     with open(path, "rb") as f:
         data = f.read()
-    if data.startswith(MAGIC):
+    if is_encrypted(data):
         if not password:
             raise ValueError("this backup is encrypted: enter its password")
         data = decrypt(data, password)

@@ -27,7 +27,8 @@ def run(host: str) -> dict:
     """Do the work; return the run-log record (outcome plus what decided it)."""
     from core.py.env_load import load_env
     load_env("skill_router")
-    from core.py.hook_io import read_payload, should_skip
+    from core.py import config
+    from core.py.hook_io import read_payload, skip_reason
 
     payload, prompt = read_payload()
 
@@ -44,10 +45,11 @@ def run(host: str) -> dict:
     extra |= {"host": host} if host != "claude" else {}
     extra["session_id"] = payload.get("session_id")
 
-    if should_skip(prompt, payload.get("cwd") or ""):
+    reason = skip_reason(prompt, payload.get("cwd") or "", config.get_skip_prompt_chars())
+    if reason:
         state.record_skipped()
         _emit(tags)
-        return {"outcome": "skipped", **extra}
+        return {"outcome": "skipped", "reason": reason, **extra}
 
     started = time.perf_counter()
     if host == "codex":

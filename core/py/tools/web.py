@@ -37,7 +37,8 @@ def list_logs() -> list[dict]:
         folder = os.path.join(DATA, hook)
         for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
             if name.endswith(".jsonl"):
-                out.append({"file": f"{hook}/{name}", "size": os.path.getsize(os.path.join(folder, name))})
+                path = os.path.join(folder, name)
+                out.append({"file": f"{hook}/{name}", "size": os.path.getsize(path), "modified": os.path.getmtime(path)})
     return out
 
 

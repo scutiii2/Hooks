@@ -579,6 +579,16 @@ def _newest_bundle(folder: Path) -> Path | None:
     return max(found, key=lambda p: p.stat().st_mtime) if found else None
 
 
+def _same(z: zipfile.ZipFile, folder: Path, files: list) -> bool:
+    """True when `folder` holds exactly the backup's files with the same bytes."""
+    if not folder.is_dir():
+        return False
+    have = {os.path.relpath(os.path.join(d, f), folder) for d, _, fs in os.walk(folder) for f in fs}
+    if have != {os.path.relpath(t, folder) for _, t in files}:
+        return False
+    return all(os.path.getsize(t) == info.file_size and open(t, "rb").read() == z.read(info) for info, t in files)
+
+
 def import_bundle(env: Env, path: str, password: str = "", dry_run: bool = True) -> dict:
     """Restore skills into the store (old copies go to trash), link both tools, and merge plugins.json."""
     p = Path(transfer._check(path, True))
@@ -587,7 +597,7 @@ def import_bundle(env: Env, path: str, password: str = "", dry_run: bool = True)
         if p is None:
             raise ValueError("no hooks-skills-*.zip or .hbk in that folder")
     data = p.read_bytes()
-    if data.startswith(transfer.MAGIC):
+    if transfer.is_encrypted(data):
         if not password:
             raise ValueError("this backup is encrypted: enter its password")
         data = transfer.decrypt(data, password)
@@ -607,7 +617,11 @@ def import_bundle(env: Env, path: str, password: str = "", dry_run: bool = True)
                 raise ValueError(f"unsafe path in backup: {info.filename}")
             members.setdefault(name, []).append((info, target))
         manifest = json.loads(z.read("plugins.json")) if "plugins.json" in z.namelist() else {}
+        same = {n for n, files in members.items() if _same(z, env.store / n, files)}
+        for n in same:
+            members.pop(n)  # identical to what is installed: nothing to replace or trash
         plan = [f"skill {n}" + (" (replaces the current one)" if (env.store / n).exists() else "") for n in sorted(members)]
+        plan += [f"skill {n} is unchanged, skipped" for n in sorted(same)]
         plan += [f"plugin {pid} in {side}" for side in ("claude", "codex") for pid in manifest.get(side, {})]
         if dry_run:
             return {"plan": plan, "file": str(p)}
@@ -623,6 +637,12 @@ def import_bundle(env: Env, path: str, password: str = "", dry_run: bool = True)
                 if _kind(h / name) == "dir":
                     t.move(h / name)
                 _link(env.store / name, h / name)
+        for name in same:  # unchanged skills only need their links in both tools
+            for h in env.homes.values():
+                if _kind(h / name) == "dir":
+                    t.move(h / name)
+                if _kind(h / name) != "link" or _real(h / name) != _real(env.store / name):
+                    _link(env.store / name, h / name)
     notes = _import_plugins(env, manifest, t)
     return {"plan": plan, "file": str(p), "skills": len(members), "notes": notes, "trash": t.save()}
 

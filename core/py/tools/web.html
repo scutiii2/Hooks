@@ -150,13 +150,20 @@ async function getJson(url) {
   return r.json();
 }
 
+function ago(s) {
+  return s < 60 ? "now" : s < 3600 ? Math.floor(s / 60) + "m" : s < 86400 ? Math.floor(s / 3600) + "h" : Math.floor(s / 86400) + "d";
+}
+
 async function refreshTabs() {
   logs = await getJson("/api/logs");
   const tabs = $("tabs");
   tabs.replaceChildren();
-  for (const { file } of logs) {
+  for (const { file, modified } of logs) {
     const b = document.createElement("button");
-    b.textContent = file.replace(".jsonl", "");
+    const age = Date.now() / 1000 - modified;
+    b.textContent = file.replace(".jsonl", "") + " · " + ago(age);
+    b.title = "last written " + new Date(modified * 1000).toLocaleString();
+    if (age > 3 * 86400 && file.endsWith("runs.jsonl")) b.title += " (no runs for 3+ days: is the hook still installed?)";
     b.setAttribute("aria-pressed", file === current);
     b.onclick = () => { current = file; store("log", file); refreshTabs().then(refreshRows); };
     tabs.append(b);

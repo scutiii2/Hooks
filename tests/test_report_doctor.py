@@ -70,3 +70,27 @@ def test_doctor_ok_when_our_hooks_are_installed_and_files_exist(tmp_path, monkey
     bad = tmp_path / "bad.json"
     bad.write_text("{")
     assert doctor.check_config("claude", str(bad))[0][0] == doctor.FAIL
+
+
+def test_skill_table_orders_least_followed_first():
+    def use(i, skill, sid):
+        return {"timestamp": i, "decision": "use", "session_id": sid, "predicted_skill": skill, "confidence": 90}
+    decisions = [use(i, "good", f"g{i}") for i in range(5)] + [use(10 + i, "bad", f"b{i}") for i in range(5)]
+    actions = [{"timestamp": i + 1, "session_id": f"g{i}", "target": "good", "tool": "Skill"} for i in range(5)]
+    rows = report.skill_table(decisions, actions)
+    assert rows[0].startswith("bad") and "0/5" in rows[0] and rows[1].startswith("good") and "5/5" in rows[1]
+
+
+def test_fix_installs_hooks_after_asking(tmp_path, monkeypatch, capsys):
+    handler = {"type": "command", "command": "py", "args": ["x"]}
+    target = tmp_path / "s.json"
+    monkeypatch.setattr(manage_hooks, "GROUPS", {"claude": [("Stop", None, [handler])], "codex": []})
+    monkeypatch.setattr(manage_hooks, "CLAUDE_TARGET", str(target))
+    monkeypatch.setattr(manage_hooks, "CODEX_TARGET", str(tmp_path / "none.json"))
+    monkeypatch.setattr(doctor, "venv_python", lambda: __file__)  # pretend the venv exists
+    monkeypatch.setattr(doctor.transfer, "_gcm", lambda: object())  # and cryptography: --yes must not pip install
+    monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+    doctor.main(["--fix"])
+    assert not target.exists()  # said no: nothing written
+    doctor.main(["--fix", "--yes"])
+    assert json.loads(target.read_text())["hooks"]["Stop"][0]["hooks"] == [handler]

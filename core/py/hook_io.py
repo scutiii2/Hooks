@@ -17,9 +17,22 @@ def is_short_contextual_reply(text: str) -> bool:
     return len(words) <= 1 or (len(words) <= 6 and SHORT_REPLY_PATTERN.match(text) is not None)
 
 
+def skip_reason(prompt: str, cwd: str = "", max_chars: int = 0) -> str | None:
+    """Why a prompt is not sent to the classifier, or None when it is. `max_chars` 0 means no length limit."""
+    if not prompt.strip():
+        return "empty"
+    if is_short_contextual_reply(prompt):
+        return "short reply"
+    if is_private(prompt, cwd):
+        return "private"
+    if max_chars and len(prompt) >= max_chars:
+        return "long"  # pasted logs and summaries: 8% of these suggestions were followed, 22% of all calls
+    return None
+
+
 def should_skip(prompt: str, cwd: str = "") -> bool:
     """Prompts never sent to the classifier: empty, short replies that only make sense in context, private."""
-    return not prompt.strip() or is_short_contextual_reply(prompt) or is_private(prompt, cwd)
+    return skip_reason(prompt, cwd) is not None
 
 
 def read_payload() -> tuple[dict, str]:

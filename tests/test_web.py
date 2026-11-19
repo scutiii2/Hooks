@@ -35,7 +35,7 @@ def test_resolve_rejects_anything_but_a_log_under_data(data):
 def test_list_logs_and_tail_skip_partial_lines(data):
     path = data / "skill_router" / "runs.jsonl"
     path.write_text('{"timestamp": 1}\n{"timestamp": 2}\n{"timesta', encoding="utf-8")
-    assert web.list_logs() == [{"file": "skill_router/runs.jsonl", "size": path.stat().st_size}]
+    assert web.list_logs() == [{"file": "skill_router/runs.jsonl", "size": path.stat().st_size, "modified": path.stat().st_mtime}]
     assert [r["timestamp"] for r in web.tail(str(path), 10)] == [1, 2]
     assert [r["timestamp"] for r in web.tail(str(path), 1)] == [2]
 

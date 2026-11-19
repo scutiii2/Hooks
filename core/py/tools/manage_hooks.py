@@ -13,6 +13,8 @@ hooks with /hooks.
 """
 import json
 import os
+import shlex
+import shutil
 import subprocess
 import sys
 
@@ -38,8 +40,21 @@ HIDE = [PYTHON_EXE, f"{ROOT}/core/py/run_hidden.py"] if os.name == "nt" else []
 RUN_HOOK = f"{ROOT}/core/py/run_hook.py"
 
 
-def _claude(args: list[str], timeout: int) -> dict:
-    return {"type": "command", "command": PYTHON_EXE, "args": args, "timeout": timeout}
+NODE = (shutil.which("node") or "node").replace("\\", "/")
+
+
+def _claude(args: list[str], timeout: int, status: str = "", only: str = "") -> dict:
+    """Exec form. `only` is an `if` rule (one permission rule): the handler runs only when it matches."""
+    handler = {"type": "command", "command": PYTHON_EXE, "args": args, "timeout": timeout}
+    handler |= {"if": only} if only else {}
+    return {**handler, "statusMessage": status} if status else handler
+
+
+def _claude_node(script: str, timeout: int, status: str = "") -> dict:
+    """A node script behind run_hidden.py (no terminal window); Claude takes it as one command string."""
+    handler = {"type": "command", "command": subprocess.list2cmdline([PYTHON_EXE, f"{ROOT}/core/py/run_hidden.py", NODE, script]),
+               "timeout": timeout}
+    return {**handler, "statusMessage": status} if status else handler
 
 
 def _codex(*words: str, timeout: int, status: str = "") -> dict:
@@ -51,7 +66,16 @@ def _codex(*words: str, timeout: int, status: str = "") -> dict:
 # (event, matcher or None, handlers). Same JSON shape for both hosts: event -> [{matcher, hooks: [...]}].
 GROUPS = {
     "claude": [
+        ("PreToolUse", "Bash", [_claude_node(f"{ROOT}/hooks/noise_filter/noise-filter-pretooluse.js", 5)]),
+        ("SessionStart", None, [
+            _claude([f"{ROOT}/hooks/token_economizer_patch/te_patch.py"], 10),
+            _claude([f"{ROOT}/hooks/session_temp_cleanup/session_temp_cleanup.py"], 30),
+            _claude_node(f"{ROOT}/hooks/coding_rules/coding-rules-inject.js", 10, "Loading coding rules..."),
+            _claude([f"{ROOT}/hooks/source_of_truth/source_of_truth.py"], 10),
+            _claude([f"{ROOT}/hooks/hide_plugin_windows/hide_plugin_windows.py"], 10, "Hiding plugin hook windows...")]),
         ("UserPromptSubmit", "*", [_claude([RUN_HOOK, "hooks.skill_router.hook"], 10)]),
+        # `if`: only a markdown file (CLAUDE.md, AGENTS.md, SKILL.md) can start a link or move, so skip the rest.
+        ("PostToolUse", "Write|Edit|MultiEdit", [_claude([f"{ROOT}/hooks/source_of_truth/source_of_truth.py"], 10, only="Edit(**/*.md)")]),
         ("PostToolUse", "Skill", [_claude([RUN_HOOK, "core.py.tools.log_followed"], 5)]),
     ],
     # Not on Codex: log_followed (Codex has
@@ -61,7 +85,8 @@ GROUPS = {
         ("SessionStart", None, [
             _codex("node", f"{ROOT}/hooks/coding_rules/coding-rules-inject.js", timeout=10, status="Loading coding rules..."),
             _codex(CODEX_PYTHON, f"{ROOT}/hooks/token_economizer_patch/te_patch.py", timeout=10),
-            _codex(CODEX_PYTHON, f"{ROOT}/hooks/source_of_truth/source_of_truth.py", timeout=10)]),
+            _codex(CODEX_PYTHON, f"{ROOT}/hooks/source_of_truth/source_of_truth.py", timeout=10),
+            _codex(CODEX_PYTHON, f"{ROOT}/hooks/session_temp_cleanup/session_temp_cleanup.py", "--host", "codex", timeout=30)]),
         ("UserPromptSubmit", None, [_codex(CODEX_PYTHON, RUN_HOOK, "hooks.skill_router.hook", "--host", "codex", timeout=10)]),
         ("PostToolUse", "apply_patch|Bash", [_codex(CODEX_PYTHON, f"{ROOT}/hooks/source_of_truth/source_of_truth.py", timeout=10)]),
     ],
@@ -69,8 +94,23 @@ GROUPS = {
 DEFAULT_TARGET = {"claude": CLAUDE_TARGET, "codex": CODEX_TARGET}
 
 
+def command_words(handler: dict) -> list[str]:
+    """Every word of a hook's command and args, unquoted (a command string is split like a shell would)."""
+    try:
+        head = shlex.split(handler.get("command", ""), posix=False)
+    except ValueError:
+        head = [handler.get("command", "")]
+    return [w.strip("\"'") for w in [*head, *map(str, handler.get("args", []))]]
+
+
+LAUNCHERS = {"pythonw.exe", "python.exe", "python", "node", "node.exe", "run_hidden.py"}
+
+
 def _key(handler: dict) -> tuple:
-    return handler.get("command"), tuple(handler.get("args", []))
+    """Same hook, however it is launched: the words left once interpreters and the hidden-window launcher
+    go, so a hook installed with another node or python path still counts as installed."""
+    return tuple(os.path.normcase(w.replace("\\", "/")) for w in command_words(handler)
+                 if os.path.basename(w.replace("\\", "/")).lower() not in LAUNCHERS)
 
 
 def _load(target: str) -> dict:

@@ -1,20 +1,23 @@
 """Health check: is this machine set up so the hooks can run?
 
-    python -m core.py.tools.doctor
+    python -m core.py.tools.doctor           check only
+    python -m core.py.tools.doctor --fix     then offer to fix what it can (asks Y/N for each; --yes skips the question)
 
 Checks Python, the .venv, node, a writable .data folder, and that every hook in the Claude and Codex
 config points at files that exist and includes the hooks `manage_hooks add` installs. Prints one
-line per check and exits 1 when something fails. It changes nothing.
+line per check and exits 1 when something fails. Without --fix it changes nothing. --fix can create the
+.venv and install the hooks of this folder in Claude and Codex; it never edits or removes other hooks.
 """
 import json
 import os
 import re
-import shlex
 import shutil
+import subprocess
 import sys
+import venv
 
 from ..paths import DATA, ROOT
-from . import manage_hooks
+from . import manage_hooks, transfer
 
 OK, WARN, FAIL = "ok  ", "warn", "FAIL"
 FILE_WORD = re.compile(r"\.(exe|py|js|json)$", re.I)
@@ -24,13 +27,7 @@ def venv_python() -> str:
     return os.path.join(ROOT, ".venv", "Scripts" if os.name == "nt" else "bin", "python.exe" if os.name == "nt" else "python")
 
 
-def words(handler: dict) -> list[str]:
-    """Every word of a hook command, with its args; a Codex command is one string."""
-    try:
-        head = shlex.split(handler.get("command", ""), posix=False)
-    except ValueError:
-        head = [handler.get("command", "")]
-    return [w.strip("\"'") for w in [*head, *map(str, handler.get("args", []))]]
+words = manage_hooks.command_words
 
 
 def handlers(config: dict):
@@ -82,17 +79,49 @@ def run() -> list[tuple[str, str]]:
                   else (FAIL, f"no .venv: run run.bat (or python -m venv .venv) in {ROOT}"))
     checks.append((OK, f"node: {shutil.which('node')}") if shutil.which("node")
                   else (WARN, "node not on PATH: coding_rules and noise_filter need it"))
+    checks.append((OK, "cryptography: installed (backups use AES-GCM)") if transfer._gcm()
+                  else (WARN, "cryptography not installed: encrypted backups use the home-built cipher (pip install cryptography)"))
     checks.append((OK, f".data writable: {DATA}") if writable(DATA) else (FAIL, f"cannot write {DATA}"))
     checks += check_config("claude", manage_hooks.CLAUDE_TARGET)
     checks += check_config("codex", manage_hooks.CODEX_TARGET)
     return checks
 
 
-def main() -> int:
-    checks = run()
+def fixes() -> list[tuple[str, callable]]:
+    """(what it does, how) for each problem this tool can repair on its own."""
+    todo = []
+    if not os.path.exists(venv_python()):
+        todo.append(("create .venv", lambda: venv.create(os.path.join(ROOT, ".venv"), with_pip=True)))
+    if not transfer._gcm():
+        todo.append(("install the cryptography package (AES-GCM for encrypted backups)",
+                     lambda: subprocess.run([sys.executable, "-m", "pip", "install", "cryptography"], check=False)))
+    for host, target in (("claude", manage_hooks.CLAUDE_TARGET), ("codex", manage_hooks.CODEX_TARGET)):
+        if any("not installed" in t or "does not exist" in t for level, t in check_config(host, target) if level == WARN):
+            todo.append((f"install the hooks of this folder in {host} ({target})", lambda h=host, t=target: manage_hooks.add(t, h)))
+    return todo
+
+
+def show(checks) -> int:
     for level, text in checks:
         print(f"[{level}] {text}")
     return 1 if any(level == FAIL for level, _ in checks) else 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    code = show(run())
+    if "--fix" not in argv:
+        return code
+    todo = fixes()
+    if not todo:
+        print("\nNothing to fix automatically." if code == 0 else "\nNothing here can be fixed automatically; see the lines above.")
+        return code
+    for what, fix in todo:
+        if "--yes" not in argv and input(f"\n{what}? [y/N] ").strip().lower() != "y":
+            continue
+        fix()
+    print()
+    return show(run())
 
 
 if __name__ == "__main__":

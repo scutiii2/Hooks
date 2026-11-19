@@ -69,13 +69,11 @@ exit /b 0
 :setup
 call :ensure || exit /b 1
 echo.
-echo This adds the hooks of this folder to your Claude settings.json and Codex hooks.json.
+echo Checks this device and offers to install the hooks of this folder in Claude and Codex.
 echo Other hooks in those files stay as they are. Codex asks you to trust them with /hooks.
-choice /c YN /n /m "Install the hooks now? [Y/N] "
-if errorlevel 2 exit /b 0
-".venv\Scripts\python.exe" -m core.py.tools.manage_hooks add
-".venv\Scripts\python.exe" -m core.py.tools.manage_hooks add --host codex
-echo.
+".venv\Scripts\python.exe" -m core.py.tools.doctor --fix
+exit /b %errorlevel%
+
 :doctor
 call :ensure || exit /b 1
 ".venv\Scripts\python.exe" -m core.py.tools.doctor

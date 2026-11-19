@@ -13,6 +13,7 @@ DEFAULTS = {
     "confidence_threshold": {"jev": 60},
     "skill_picker_batch_size": 20,
     "skill_min_confidence": {},
+    "skip_prompt_chars": 400,
 }
 
 
@@ -35,6 +36,11 @@ def get_confidence_threshold(hook: str, provider_name: str = "jev") -> int:
 def get_skill_min_confidence() -> dict[str, int]:
     """Per-skill floors above the global threshold, for skills that over-trigger."""
     return {k: int(v) for k, v in _read_config("skill_router")["skill_min_confidence"].items()}
+
+
+def get_skip_prompt_chars() -> int:
+    """Prompts this long or longer are not classified (0 = classify everything)."""
+    return int(_read_config("skill_router")["skip_prompt_chars"])
 
 
 def get_skill_picker_batch_size() -> int:
