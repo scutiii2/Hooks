@@ -160,7 +160,13 @@ class ClaudeHost(Host):
     def has_marketplace(self):
         return "tokeneconomizer" in self._json(CLAUDE / "plugins" / "known_marketplaces.json")
 
-    def add_marketplace(self): return run("claude", "plugin", "marketplace", "add", SOURCE)
+    def declared_source(self) -> str:
+        """The source settings.json declares for this marketplace, in the form `marketplace add` takes. Claude
+        refuses an add whose source differs from the declared one (owner/repo vs the full git URL)."""
+        src = self._json(self.settings).get("extraKnownMarketplaces", {}).get("tokeneconomizer", {}).get("source", {})
+        return src.get("repo") or src.get("url") or SOURCE if isinstance(src, dict) else SOURCE
+
+    def add_marketplace(self): return run("claude", "plugin", "marketplace", "add", self.declared_source())
     def refresh_marketplace(self): return run("claude", "plugin", "marketplace", "update", "tokeneconomizer")
     def remove_marketplace(self): return run("claude", "plugin", "marketplace", "remove", "tokeneconomizer")
     def add_plugin(self): return run("claude", "plugin", "install", KEY)

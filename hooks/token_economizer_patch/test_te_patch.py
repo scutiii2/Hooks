@@ -162,3 +162,14 @@ def test_claude_uninstall_of_nothing_is_ok(monkeypatch):
 
     monkeypatch.setattr(te_patch, "run", fake)
     assert te_patch.ClaudeHost().uninstall() and te_patch.outcome(True) == "ok"
+
+
+def test_claude_adds_the_marketplace_the_way_settings_declares_it(tmp_path, monkeypatch):
+    host = te_patch.ClaudeHost()
+    monkeypatch.setattr(host, "settings", tmp_path / "s.json")
+    assert host.declared_source() == te_patch.SOURCE  # no settings: the default
+    url = "https://github.com/microsoft/TokenEconomizer.git"
+    (tmp_path / "s.json").write_text(json.dumps({"extraKnownMarketplaces": {"tokeneconomizer": {"source": {"source": "git", "url": url}}}}))
+    assert host.declared_source() == url
+    (tmp_path / "s.json").write_text(json.dumps({"extraKnownMarketplaces": {"tokeneconomizer": {"source": {"source": "github", "repo": "a/b"}}}}))
+    assert host.declared_source() == "a/b"
