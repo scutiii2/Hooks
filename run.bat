@@ -27,10 +27,31 @@ set "WEBARGS=%WEBARGS% %~1"
 goto webloop
 
 :web
+call :ensure || exit /b 1
 ".venv\Scripts\python.exe" -m core.py.tools.web%WEBARGS%
 exit /b %errorlevel%
 
+rem .venv is not in git: create it on first run (needs the py launcher or python on PATH).
+:ensure
+if exist ".venv\Scripts\python.exe" exit /b 0
+set "PY="
+where py >nul 2>nul && set "PY=py -3"
+if not defined PY where python >nul 2>nul && set "PY=python"
+if not defined PY (
+  echo Python 3.10+ not found. Install it from python.org, then run this again.
+  exit /b 1
+)
+echo Creating .venv ...
+%PY% -m venv .venv
+if errorlevel 1 (
+  echo Could not create .venv.
+  exit /b 1
+)
+exit /b 0
+
 :patch
+call :ensure || exit /b 1
+set "VPY=%~dp0.venv\Scripts\python.exe"
 cd /d "%~dp0hooks\token_economizer_patch"
 
 :p_stage1
@@ -60,12 +81,12 @@ echo  B  Back
 echo.
 choice /c 123456B /n /m "Choose: "
 if errorlevel 7 goto p_stage1
-if errorlevel 6 ( py -m pytest test_te_patch.py -q & goto p_again )
-if errorlevel 5 ( py te_patch.py off %HOST% & goto p_again )
-if errorlevel 4 ( py te_patch.py on %HOST% & goto p_again )
-if errorlevel 3 ( py te_patch.py rebuild %HOST% & goto p_again )
-if errorlevel 2 ( py te_patch.py update %HOST% & goto p_again )
-py te_patch.py status
+if errorlevel 6 ( "%VPY%" -m pip install -q pytest & "%VPY%" -m pytest test_te_patch.py -q & goto p_again )
+if errorlevel 5 ( "%VPY%" te_patch.py off %HOST% & goto p_again )
+if errorlevel 4 ( "%VPY%" te_patch.py on %HOST% & goto p_again )
+if errorlevel 3 ( "%VPY%" te_patch.py rebuild %HOST% & goto p_again )
+if errorlevel 2 ( "%VPY%" te_patch.py update %HOST% & goto p_again )
+"%VPY%" te_patch.py status
 
 :p_again
 pause
